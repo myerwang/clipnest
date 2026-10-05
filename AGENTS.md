@@ -4,7 +4,7 @@
 开发期。New macOS MVP, no production users. Updated 2026-10-05.
 
 ## 账号绑定
-Authorized GitHub destination: myerwang/clipnest. Account ID 7298618 verified using the GitHub connector. Repository created publicly on 2026-10-05 and renamed from clipnest-macos to clipnest with explicit authorization, repository ID 1405073487, browser owner and connector ID both verified. Local gh authorization remains invalid and SSH authorization failed; do not use either for writes until reverified. Approved git author/committer: myerwang <7298618+myerwang@users.noreply.github.com>. Use repository-local git config only. Never use the real email or infer author identity from global configuration.
+Authorized GitHub destination: myerwang/clipnest. Account ID 7298618 verified using the GitHub connector. Repository created publicly on 2026-10-05 and renamed from clipnest-macos to clipnest with explicit authorization, repository ID 1405073487, browser owner and connector ID both verified. User explicitly authorized the official GitHub CLI HTTPS device OAuth and secure system-credential storage on 2026-10-05 (repo/read:org/gist minimum scopes; actual writes only to this repository). Use project-scoped GH_CONFIG_DIR, no environment token overrides or SSH keys. Credentials must use keychain; stop on plaintext fallback. Verify login myerwang and ID 7298618 before publishing. Existing legacy gh authorization is invalid and SSH authorization failed. Approved git author/committer: myerwang <7298618+myerwang@users.noreply.github.com>. Use repository-local git config only. Never use the real email or infer author identity from global configuration.
 Bundle ID: app.clipnest.mac. Local ad-hoc signing only; no Apple Developer team or distribution account.
 
 ## 计费点清单
