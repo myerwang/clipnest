@@ -14,7 +14,7 @@ None. No hosted services or paid APIs.
 None. User explicitly authorized this new public repository and its source/docs and GitHub Releases installation archives, with local development fallback when formal Codex cloud environment creation is unavailable.
 
 ## Scope and commands
-English source/UI/README. UI follows system appearance via adaptive colors; never change the user's system theme. Chinese user communication. Native AppKit, macOS 13+, no dependencies. Read this file before changes.
+English source/UI/README. UI follows system appearance via adaptive colors; never change the user's system theme. Chinese user communication. Native AppKit, macOS 13+; Sparkle 2.10.0 is the only external dependency. Read this file before changes.
 - `swift test`: core logic and persistence tests.
 - `./scripts/build.sh`: local .app in dist, ad-hoc signed; CLIPNEST_BUNDLE_ROOT selects an isolated build bundle.
 - `python3 scripts/sign-developer-id.py <built-app> <new-output-directory> --identity <public-certificate-SHA1> --execute`: copy and sign six components inside-out; team C2C48NP2VN, Hardened Runtime and secure timestamps; no key creation/export or notarization upload. Default is a read-only plan.
