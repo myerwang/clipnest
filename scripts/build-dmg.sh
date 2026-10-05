@@ -13,6 +13,10 @@ ditto -x -k "$archive" "$staging/content"
 test -d "$staging/content/ClipNest.app"
 codesign --verify --deep --strict "$staging/content/ClipNest.app"
 ln -s /Applications "$staging/content/Applications"
+status='Development preview: ad-hoc signed, not Developer ID signed or notarized.'
+if xcrun stapler validate "$staging/content/ClipNest.app" >/dev/null 2>&1; then
+    status='The app is Developer ID signed and Apple notarized with a stapled ticket.'
+fi
 cat > "$staging/content/INSTALL.txt" <<INSTALL
 ClipNest $version — macOS 13+, Apple silicon
 
@@ -20,7 +24,8 @@ Drag ClipNest.app onto Applications. Eject this disk image, then launch
 ClipNest from Applications. Its icon appears only in the menu bar.
 Do not run the app directly from this read-only disk image.
 
-Development preview: ad-hoc signed, not Developer ID signed or notarized.
+$status
+The container must be signed, notarized and stapled separately for distribution.
 This DMG does not bypass Gatekeeper. No system security settings are changed.
 The ZIP release remains the Sparkle update archive.
 INSTALL

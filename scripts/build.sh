@@ -1,15 +1,16 @@
 #!/bin/sh
 set -eu
+bundle_root=${CLIPNEST_BUNDLE_ROOT:-/tmp/clipnest-bundle}
 cd "$(dirname "$0")/.."
 version=$(python3 -c 'import json; print(json.load(open("config/version.json"))["version"])')
 build=$(python3 -c 'import json; print(json.load(open("config/version.json"))["build"])')
 ./scripts/build-icons.sh
 CLANG_MODULE_CACHE_PATH=/tmp/clipnest-module-cache SWIFTPM_MODULECACHE_OVERRIDE=/tmp/clipnest-module-cache swift build -c release --disable-sandbox --cache-path /tmp/clipnest-swift-cache --scratch-path /tmp/clipnest-build --build-system native
-mkdir -p /tmp/clipnest-bundle/ClipNest.app/Contents/MacOS
-mkdir -p /tmp/clipnest-bundle/ClipNest.app/Contents/Frameworks
-ditto --norsrc --noextattr /tmp/clipnest-build/release/Sparkle.framework /tmp/clipnest-bundle/ClipNest.app/Contents/Frameworks/Sparkle.framework
-cp /tmp/clipnest-build/release/ClipNest /tmp/clipnest-bundle/ClipNest.app/Contents/MacOS/ClipNest
-cat > /tmp/clipnest-bundle/ClipNest.app/Contents/Info.plist <<'PLIST'
+mkdir -p "$bundle_root/ClipNest.app/Contents/MacOS"
+mkdir -p "$bundle_root/ClipNest.app/Contents/Frameworks"
+ditto --norsrc --noextattr /tmp/clipnest-build/release/Sparkle.framework "$bundle_root/ClipNest.app/Contents/Frameworks/Sparkle.framework"
+cp /tmp/clipnest-build/release/ClipNest "$bundle_root/ClipNest.app/Contents/MacOS/ClipNest"
+cat > "$bundle_root/ClipNest.app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -34,17 +35,17 @@ cat > /tmp/clipnest-bundle/ClipNest.app/Contents/Info.plist <<'PLIST'
 <key>SUSignedFeedFailureExpirationInterval</key><real>0</real>
 </dict></plist>
 PLIST
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" /tmp/clipnest-bundle/ClipNest.app/Contents/Info.plist
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" /tmp/clipnest-bundle/ClipNest.app/Contents/Info.plist
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$bundle_root/ClipNest.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" "$bundle_root/ClipNest.app/Contents/Info.plist"
 # The public key is safe to publish; no private key ever enters this script.
 if [ -f config/sparkle-public-key.txt ]; then
-    /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $(cat config/sparkle-public-key.txt)" /tmp/clipnest-bundle/ClipNest.app/Contents/Info.plist
+    /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $(cat config/sparkle-public-key.txt)" "$bundle_root/ClipNest.app/Contents/Info.plist"
 fi
-mkdir -p /tmp/clipnest-bundle/ClipNest.app/Contents/Resources
-cp Resources/ClipNest.icns /tmp/clipnest-bundle/ClipNest.app/Contents/Resources/ClipNest.icns
-xattr -cr /tmp/clipnest-bundle/ClipNest.app
-codesign --force --sign - /tmp/clipnest-bundle/ClipNest.app
+mkdir -p "$bundle_root/ClipNest.app/Contents/Resources"
+cp Resources/ClipNest.icns "$bundle_root/ClipNest.app/Contents/Resources/ClipNest.icns"
+xattr -cr "$bundle_root/ClipNest.app"
+codesign --force --sign - "$bundle_root/ClipNest.app"
 mkdir -p dist
-ditto --norsrc --noextattr /tmp/clipnest-bundle/ClipNest.app dist/ClipNest.app
-ditto -c -k --keepParent --norsrc --noextattr /tmp/clipnest-bundle/ClipNest.app dist/ClipNest-$version-macos-$(uname -m).zip
+ditto --norsrc --noextattr "$bundle_root/ClipNest.app" dist/ClipNest.app
+ditto -c -k --keepParent --norsrc --noextattr "$bundle_root/ClipNest.app" dist/ClipNest-$version-macos-$(uname -m).zip
 printf 'Built %s/dist/ClipNest.app\n' "$PWD"

@@ -12,7 +12,7 @@ Blocked: attempted bad-signature download scenario hits installer-launch error40
 
 Not performed: real mouse drag/drop, keyboard/scroll usability, GUI quit/relaunch persistence, manual second-launch permission selection, real user-click update flow. Native accessory-app automation could not identify the app; no whole-desktop capture was used. AppKit layout exports and persistence reload tests do not substitute for those tests.
 
-Distribution: app is ad-hoc signed, not Developer ID signed or notarized; Gatekeeper/translocation may block it. An Ed25519 update signature is independent of Apple's code signing and does not remove that restriction.
+Historical 0.1.0/0.1.1 distribution: app is ad-hoc signed, not Developer ID signed or notarized; Gatekeeper/translocation may block it. An Ed25519 update signature is independent of Apple's code signing and does not remove that restriction.
 
 ## DMG first-install package
 
@@ -23,3 +23,11 @@ The 0.1.0 DMG was packaged from the already-published ZIP without rebuild/re-sig
 Native build, six XCTest cases and isolated clipboard integration passed again. Complete ten-size ICNS built from approved PNG using only faithful resize/format conversion; application Info.plist embeds the icon. Actual NSWorkspace icon render on this Mac showed normal rounded presentation without a white corner square; earlier macOS rendering has not been verified. Same 18pt isTemplate glyph with two internal lines rendered through NSImageView for aqua/darkAqua, with no annotation circle. This remains offscreen native API validation, not real Finder/menu-bar screenshot or mouse acceptance.
 
 New DMG created from new ZIP; image checksum, read-only mounted app/symlink inventory equality, icon-resource presence, nested codesign and exact own-volume detach passed. Original0.1.0 ZIP unchanged. New ZIP/feed signatures and independent modified-input rejection passed; seven Sparkle-engine feed scenarios passed for build2. Installer replacement/relaunch and blocked bad-signature download case retain the previously stated limitations.
+
+## 0.1.2 Developer ID and Apple notarization
+
+Built an isolated source snapshot with version0.1.2/build3. No product behavior changed. Six components (Installer, Downloader, Autoupdate, Updater, Sparkle framework and main app) signed inside-out with the authorized team C2C48NP2VN, Hardened Runtime and secure timestamps. Downloader's existing empty entitlements preserved; no debug entitlement or relaxed library validation. Private keys remained in login Keychain.
+
+App submission e54ec0e9-6b9d-4886-a396-6cadb4100edf: Accepted, no issues. DMG submission 83ce71ab-d88e-4e3b-af96-372ca3bc22c4: Accepted, no issues. App and DMG stapled-ticket validation and strict code-signature checks passed. Official spctl assessments accepted App (execute) and DMG (open/primary-signature) as Notarized Developer ID. ZIP extraction preserved the App ticket. Read-only DMG mount matched the entire ZIP app inventory and symlinks; exact test volume detached.
+
+The freshly signed app passed the isolated AppKit integration test. macOS LaunchServices/trust checks require the ordinary host execution context and failed inside the agent filesystem sandbox; the same official checks passed outside that sandbox without changing any system security setting. Independent EdDSA verification passed for final ZIP/feed and rejected modified ZIP/feed. No installed app or general clipboard was accessed. The real mouse/keyboard/GUI restart and two-version updater replacement boundaries remain unverified as stated above.
