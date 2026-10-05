@@ -4,6 +4,8 @@ A minimal **macOS menu bar clipboard manager** with **pinned snippets** and only
 
 ## How it works
 
+Light and dark appearances follow macOS automatically. Pinned snippets and recent copies use separate rounded cards with blue and neutral headers and an 18-point gap; only pinned snippets need to scroll.
+
 The clipboard icon stays in the menu bar, with no Dock icon or ordinary application window. Click it to open two simple row lists:
 
 - **Pinned snippets:** click a row to copy its full text. Pins have no three-item cap; the list scrolls.
@@ -11,13 +13,15 @@ The clipboard icon stays in the menu bar, with no Dock icon or ordinary applicat
 - Drag a pin at least 5 points to reveal the red trash row. Release inside it to delete; releasing elsewhere or pressing Escape cancels. Settings → Undo Delete restores the last deleted pin during this session.
 - Settings also offers pause/resume capture, About & Privacy, and Quit. Nothing enables launch at login automatically.
 
-Long text is shown as a single truncated preview; the full text is kept. Arrow keys or Tab select rows, Return/Space copy or pin, Command-Delete asks before deleting a selected pin, Command-Z undoes deletion, and Escape closes the panel.
+Long text is shown as a single truncated preview; the full text is kept. Arrow keys or Tab select rows, Return/Space copy or pin, Command-Delete asks before deleting a selected pin, Command-Z undoes deletion, Command-Comma opens Settings, Command-Q quits, and Escape closes the panel.
 
 ## Screenshot
 
-![Synthetic ClipNest panel](docs/screenshot.png)
+![ClipNest light appearance](docs/screenshot-light.png)
 
-[Drag-to-trash preview](docs/drag-trash.png) · [Empty-state preview](docs/empty.png)
+![ClipNest dark appearance](docs/screenshot-dark.png)
+
+[Dark drag-to-trash preview](docs/drag-trash-dark.png)
 
 These review screenshots are rendered from the actual AppKit panel with synthetic data in an isolated QA mode. The list demonstrates pinned snippets exceeding three and recent history capped at three. They are layout previews, **not evidence of a completed real mouse/keyboard usability test**. No personal clipboard content is included.
 
@@ -50,6 +54,8 @@ dist/ClipNest.app/Contents/MacOS/ClipNest --ui-test
 ```
 
 Unit tests cover recent-history bounds/deduplication, eight pins, persistence and private file permissions, delete/undo order, corrupt-file preservation, failed-save rollback, and privacy markers. The integration test uses a unique named pasteboard and temporary storage to verify actual AppKit capture/copy, self-write suppression, privacy filtering, pause, five pins, recent three, deletion, undo and reload.
+
+`--appearance-previews` exports actual light/dark panel previews by overriding only the isolated QA view's appearance, never the system theme. Normal operation leaves appearance inherited from macOS.
 
 `--review-previews` renders the normal list, the same trash visual state used by drag handling, and an empty state; it does not synthesize mouse drags. Set a fresh `CLIPNEST_QA_DIR` to choose the output directory.
 

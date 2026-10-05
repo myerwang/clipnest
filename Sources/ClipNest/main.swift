@@ -9,7 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var store: ClipboardStore!
     var monitor: ClipboardMonitor!
     var panel: PanelView!
-    let testing = CommandLine.arguments.contains("--ui-test") || CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--review-previews")
+    let testing = CommandLine.arguments.contains("--ui-test") || CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--review-previews") || CommandLine.arguments.contains("--appearance-previews")
     var sampleIndex = 0
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.button?.setAccessibilityLabel("ClipNest clipboard")
         monitor.start()
         if testing {
-            if CommandLine.arguments.contains("--review-previews") {
+            if CommandLine.arguments.contains("--review-previews") || CommandLine.arguments.contains("--appearance-previews") {
                 renderReviewPreviews()
                 return
             }
@@ -69,9 +69,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             monitor.board.clearContents(); monitor.board.setString(text, forType: .string); monitor.poll()
             if index < 5 { _ = store.pin(store.recent[0].id) }
         }
+        if CommandLine.arguments.contains("--appearance-previews") {
+            panel.appearance = NSAppearance(named: .aqua)
+        }
         toggle()
         let root = URL(fileURLWithPath: ProcessInfo.processInfo.environment["CLIPNEST_QA_DIR"] ?? NSTemporaryDirectory() + "clipnest-review")
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        if CommandLine.arguments.contains("--appearance-previews") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
+                panel.capture(to: root.appendingPathComponent("ClipNest-Light.png"))
+                panel.appearance = NSAppearance(named: .darkAqua)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
+                    panel.capture(to: root.appendingPathComponent("ClipNest-Dark.png"))
+                    panel.showDeletionTarget(true)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
+                        panel.capture(to: root.appendingPathComponent("ClipNest-Dark-Trash.png"))
+                        NSApp.terminate(nil)
+                    }
+                }
+            }
+            return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
             panel.capture(to: root.appendingPathComponent("ClipNest-01-list.png"))
             panel.showDeletionTarget(true)
@@ -114,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func quit() { NSApp.terminate(nil) }
     @objc func about() {
         let alert = NSAlert(); alert.messageText = "ClipNest"
-        alert.informativeText = "Unlimited pinned snippets, only your last 3 distinct text copies.\n\nPins are stored locally as plain text. Recent copies disappear on quit. No network or analytics. Marked private/password/transient contents are skipped; unmarked sensitive text cannot be identified.\n\nKeyboard: ↑ ↓ or Tab to select, Return to copy/pin, ⌘Delete to delete a pin, ⌘Z to undo, Esc to close.\n\nDrag a pin onto the red trash row to delete; release elsewhere to cancel.\n\n" + (store.error ?? "macOS 13+. No auto-start or special permissions.")
+        alert.informativeText = "Unlimited pinned snippets, only your last 3 distinct text copies.\n\nPins are stored locally as plain text. Recent copies disappear on quit. No network or analytics. Marked private/password/transient contents are skipped; unmarked sensitive text cannot be identified.\n\nKeyboard: ↑ ↓ or Tab to select, Return to copy/pin, ⌘Delete to delete a pin, ⌘Z to undo, ⌘, for Settings, ⌘Q to quit, Esc to close.\n\nDrag a pin onto the red trash row to delete; release elsewhere to cancel.\n\n" + (store.error ?? "macOS 13+. No auto-start or special permissions.")
         alert.runModal()
     }
     @objc func testCopy() {
