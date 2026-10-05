@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/.."
 version=$(python3 -c 'import json; print(json.load(open("config/version.json"))["version"])')
 archive=${1:-dist/ClipNest-$version-macos-arm64.zip}
-output=dist/ClipNest-$version-macos-arm64.dmg
+output=${2:-dist/ClipNest-$version-macos-arm64.dmg}
 if [ -e "$output" ]; then echo 'DMG already exists; refusing to overwrite.' >&2; exit 1; fi
 staging=$(mktemp -d /tmp/clipnest-dmg-stage.XXXXXX)
 trap 'rmdir "$staging" 2>/dev/null || true' EXIT
@@ -29,7 +29,7 @@ The container must be signed, notarized and stapled separately for distribution.
 This DMG does not bypass Gatekeeper. No system security settings are changed.
 The ZIP release remains the Sparkle update archive.
 INSTALL
-mkdir -p dist
+mkdir -p "$(dirname "$output")"
 hdiutil create -srcfolder "$staging/content" -volname ClipNest -fs HFS+ -format UDZO "$output"
 hdiutil verify "$output"
 # Keep temporary source material recoverable until remote delivery is verified.

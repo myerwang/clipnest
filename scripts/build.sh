@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 bundle_root=${CLIPNEST_BUNDLE_ROOT:-/tmp/clipnest-bundle}
+dist_root=${CLIPNEST_DIST_ROOT:-dist}
 cd "$(dirname "$0")/.."
 version=$(python3 -c 'import json; print(json.load(open("config/version.json"))["version"])')
 build=$(python3 -c 'import json; print(json.load(open("config/version.json"))["build"])')
@@ -17,12 +18,15 @@ cat > "$bundle_root/ClipNest.app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>ClipNest</string>
 <key>CFBundleIdentifier</key><string>app.clipnest.mac</string>
 <key>CFBundleName</key><string>ClipNest</string>
+<key>CFBundleDevelopmentRegion</key><string>en</string>
+<key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string><string>zh-Hant</string><string>ja</string><string>ko</string><string>es</string><string>fr</string><string>de</string></array>
 <key>CFBundleIconFile</key><string>ClipNest</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>VERSION_PLACEHOLDER</string>
 <key>CFBundleVersion</key><string>BUILD_PLACEHOLDER</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
+<key>LSMultipleInstancesProhibited</key><true/>
 <key>NSHighResolutionCapable</key><true/>
 <key>SUFeedURL</key><string>https://raw.githubusercontent.com/myerwang/clipnest/main/appcast.xml</string>
 <key>SUScheduledCheckInterval</key><real>86400</real>
@@ -43,9 +47,10 @@ if [ -f config/sparkle-public-key.txt ]; then
 fi
 mkdir -p "$bundle_root/ClipNest.app/Contents/Resources"
 cp Resources/ClipNest.icns "$bundle_root/ClipNest.app/Contents/Resources/ClipNest.icns"
+for localization in Resources/*.lproj; do ditto "$localization" "$bundle_root/ClipNest.app/Contents/Resources/$(basename "$localization")"; done
 xattr -cr "$bundle_root/ClipNest.app"
 codesign --force --sign - "$bundle_root/ClipNest.app"
-mkdir -p dist
-ditto --norsrc --noextattr "$bundle_root/ClipNest.app" dist/ClipNest.app
-ditto -c -k --keepParent --norsrc --noextattr "$bundle_root/ClipNest.app" dist/ClipNest-$version-macos-$(uname -m).zip
-printf 'Built %s/dist/ClipNest.app\n' "$PWD"
+mkdir -p "$dist_root"
+ditto --norsrc --noextattr "$bundle_root/ClipNest.app" "$dist_root/ClipNest.app"
+ditto -c -k --keepParent --norsrc --noextattr "$bundle_root/ClipNest.app" "$dist_root/ClipNest-$version-macos-$(uname -m).zip"
+printf 'Built %s/ClipNest.app\n' "$dist_root"

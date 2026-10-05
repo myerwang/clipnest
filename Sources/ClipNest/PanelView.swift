@@ -1,5 +1,5 @@
-// Responsibility: accessible section cards, adaptive appearance, keyboard navigation and deliberate drag-to-trash.
-// Relationship: AppDelegate supplies ClipboardStore and copy/settings callbacks.
+// Responsibility: single-line bubbles, stable usage ordering, keyboard access and deliberate local drag deletion.
+// Relationship: AppDelegate supplies ClipboardStore and success-aware copy/settings callbacks.
 // Development status: complete.
 import AppKit
 import ClipNestCore
@@ -11,244 +11,273 @@ private enum Theme {
             return NSColor(srgbRed: CGFloat((hex >> 16) & 255) / 255, green: CGFloat((hex >> 8) & 255) / 255, blue: CGFloat(hex & 255) / 255, alpha: 1)
         }
     }
-    static let background = adaptive(0xF4F6F9, 0x1C2027)
-    static let card = adaptive(0xFFFFFF, 0x282D36)
-    static let pinHeader = adaptive(0xEAF2FF, 0x25384F)
-    static let recentHeader = adaptive(0xEFF1F5, 0x303640)
-    static let pinBorder = adaptive(0xCBDCF4, 0x3C5677)
-    static let recentBorder = adaptive(0xDDE2EA, 0x434B58)
-    static let primary = adaptive(0x202C3D, 0xEFF3FA)
-    static let secondary = adaptive(0x66758A, 0xA7B4C7)
-    static let accent = adaptive(0x316FC4, 0x9CC8FF)
-    static let selection = adaptive(0xEAF2FF, 0x334C6C)
-    static let separator = adaptive(0xEDF0F5, 0x39414D)
-    static let trash = adaptive(0xC93440, 0xBC3541)
+    static let background = adaptive(0xF7F8FA, 0x1C2027)
+    static let pin = adaptive(0xE8F0FA, 0x2B3B50)
+    static let recent = adaptive(0xFFFFFF, 0x2B3039)
+    static let primary = adaptive(0x243349, 0xEEF3FA)
+    static let secondary = adaptive(0x718097, 0xA4B0C0)
+    static let accent = adaptive(0x4379B7, 0xA3C9FF)
+    static let selection = adaptive(0x6892C5, 0x88B3EE)
+    static let trash = adaptive(0xC64552, 0xBE4553)
 }
 
-final class FlippedDocument: NSView {
-    override var isFlipped: Bool { true }
-}
+final class FlippedDocument: NSView { override var isFlipped: Bool { true } }
 
 final class SnippetRow: NSButton {
     var dragAction: ((SnippetRow, NSEvent) -> Void)?
     var isPinned = false
+    private(set) var dragOriginInWindow: NSPoint?
+    var placeholder = false { didSet { needsDisplay = true } }
     override func draw(_ dirtyRect: NSRect) {
-        if state == .on {
-            Theme.selection.setFill()
-            NSBezierPath(roundedRect: bounds.insetBy(dx: 3, dy: 3), xRadius: 6, yRadius: 6).fill()
+        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 11, yRadius: 11)
+        (isPinned ? Theme.pin : Theme.recent).withAlphaComponent(placeholder ? 0.18 : NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.68).setFill(); shape.fill()
+        if state == .on && !placeholder {
+            Theme.selection.withAlphaComponent(0.7).setStroke(); shape.lineWidth = 1; shape.stroke()
         }
+        guard !placeholder else { return }
         let paragraph = NSMutableParagraphStyle(); paragraph.lineBreakMode = .byTruncatingTail
-        (title as NSString).draw(in: NSRect(x: 12, y: 10, width: bounds.width - 24, height: 18), withAttributes: [
+        (title as NSString).draw(in: NSRect(x: 13, y: (bounds.height - 18) / 2, width: bounds.width - 26, height: 18), withAttributes: [
             .font: NSFont.systemFont(ofSize: 13), .foregroundColor: Theme.primary, .paragraphStyle: paragraph
         ])
-        Theme.separator.setFill()
-        NSRect(x: 12, y: 0, width: bounds.width - 24, height: 1).fill()
     }
     override func mouseDown(with event: NSEvent) {
         guard isPinned else { super.mouseDown(with: event); return }
-        // Drag tracking is local: no snippet is placed on an external drag pasteboard.
-        let origin = event.locationInWindow
-        while let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
-            if next.type == .leftMouseUp { performClick(nil); return }
-            if hypot(next.locationInWindow.x - origin.x, next.locationInWindow.y - origin.y) >= 5 {
+        // No external drag pasteboard: contents stay inside this panel.
+        let origin = event.locationInWindow; dragOriginInWindow = origin
+        while let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp, .keyDown]) {
+            if next.type == .keyDown && next.keyCode == 53 { return }
+            if next.type == .leftMouseUp { if bounds.contains(convert(next.locationInWindow, from: nil)) { performClick(nil) }; return }
+            if next.type == .leftMouseDragged && hypot(next.locationInWindow.x - origin.x, next.locationInWindow.y - origin.y) >= 5 {
                 dragAction?(self, next); return
             }
         }
     }
 }
 
-private final class SectionCard: NSView {
+private final class BubbleSection: NSView {
     let pinned: Bool
     let titleLabel: NSTextField
     let detailLabel = NSTextField(labelWithString: "")
-    let stack = NSStackView()
+    let document = FlippedDocument()
     let scroll = NSScrollView()
     let emptyLabel = NSTextField(labelWithString: "")
-    init(frame: NSRect, pinned: Bool) {
+    init(pinned: Bool) {
         self.pinned = pinned
-        titleLabel = NSTextField(labelWithString: pinned ? "Pinned snippets" : "Recent copies")
-        super.init(frame: frame)
+        titleLabel = NSTextField(labelWithString: L(pinned ? "Pinned snippets" : "Recent copies"))
+        super.init(frame: .zero)
         titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        titleLabel.textColor = pinned ? Theme.accent : Theme.primary
-        titleLabel.frame = NSRect(x: 36, y: frame.height - 29, width: 180, height: 18); addSubview(titleLabel)
-        let symbol = NSImageView(frame: NSRect(x: 14, y: frame.height - 28, width: 15, height: 15))
-        symbol.image = NSImage(systemSymbolName: pinned ? "pin.fill" : "clock", accessibilityDescription: nil)
-        symbol.contentTintColor = pinned ? Theme.accent : Theme.secondary; addSubview(symbol)
-        detailLabel.font = .systemFont(ofSize: 10, weight: .medium)
-        detailLabel.textColor = Theme.secondary; detailLabel.alignment = .right
-        detailLabel.frame = NSRect(x: frame.width - 117, y: frame.height - 29, width: 100, height: 17); addSubview(detailLabel)
-        scroll.frame = NSRect(x: 8, y: 8, width: frame.width - 16, height: frame.height - 50)
-        scroll.hasVerticalScroller = pinned; scroll.autohidesScrollers = true
-        scroll.drawsBackground = false
-        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 0
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        let document = FlippedDocument(); document.addSubview(stack); scroll.documentView = document
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: document.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: document.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: document.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: document.bottomAnchor),
-            stack.widthAnchor.constraint(equalToConstant: frame.width - 32)
-        ])
-        addSubview(scroll)
+        titleLabel.textColor = pinned ? Theme.accent : Theme.secondary; addSubview(titleLabel)
+        detailLabel.font = .systemFont(ofSize: 11); detailLabel.textColor = Theme.secondary
+        detailLabel.alignment = .right; addSubview(detailLabel)
+        scroll.hasVerticalScroller = pinned; scroll.autohidesScrollers = true; scroll.scrollerStyle = .overlay
+        scroll.drawsBackground = false; scroll.documentView = document; addSubview(scroll)
         emptyLabel.font = .systemFont(ofSize: 12); emptyLabel.textColor = Theme.secondary
-        emptyLabel.maximumNumberOfLines = 2; emptyLabel.alignment = .center
-        emptyLabel.frame = NSRect(x: 20, y: (frame.height - 40) / 2 - 15, width: frame.width - 40, height: 40)
-        addSubview(emptyLabel)
+        emptyLabel.maximumNumberOfLines = 2; emptyLabel.alignment = .center; addSubview(emptyLabel)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    override func draw(_ dirtyRect: NSRect) {
-        let rect = bounds.insetBy(dx: 0.5, dy: 0.5)
-        let shape = NSBezierPath(roundedRect: rect, xRadius: 11, yRadius: 11)
-        Theme.card.setFill(); shape.fill()
-        NSGraphicsContext.saveGraphicsState(); shape.addClip()
-        (pinned ? Theme.pinHeader : Theme.recentHeader).setFill()
-        NSRect(x: 0, y: bounds.height - 40, width: bounds.width, height: 40).fill()
-        NSGraphicsContext.restoreGraphicsState()
-        (pinned ? Theme.pinBorder : Theme.recentBorder).setStroke(); shape.lineWidth = 1; shape.stroke()
-    }
-    func clear() {
-        for view in stack.arrangedSubviews { stack.removeArrangedSubview(view); view.removeFromSuperview() }
-    }
-    func finish(count: Int) {
-        detailLabel.stringValue = pinned ? "\(count) pinned" : "Last 3"
-        emptyLabel.stringValue = pinned ? "No pinned snippets yet.\nClick a recent copy to keep it." : "Copy some text to get started."
+    func arrange(_ rows: [SnippetRow], count: Int) {
+        titleLabel.frame = NSRect(x: 3, y: bounds.height - 22, width: 215, height: 18)
+        detailLabel.frame = NSRect(x: bounds.width - 100, y: bounds.height - 22, width: 97, height: 18)
+        detailLabel.stringValue = pinned ? String(count) : L("Last 3")
+        scroll.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - 34)
+        for child in document.subviews { child.removeFromSuperview() }
+        let width = bounds.width - (pinned && rows.count > 9 ? 10 : 0)
+        for (index, row) in rows.enumerated() {
+            row.frame = NSRect(x: 0, y: CGFloat(index) * 42, width: width, height: 36); document.addSubview(row)
+        }
+        document.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(scroll.contentSize.height, CGFloat(rows.count) * 42 - 6))
+        emptyLabel.stringValue = L(pinned ? "No pins yet. Click a recent copy to keep it." : "Copy some text to get started.")
+        emptyLabel.frame = NSRect(x: 16, y: max(8, (bounds.height - 70) / 2), width: bounds.width - 32, height: 38)
         emptyLabel.isHidden = count > 0
-        stack.layoutSubtreeIfNeeded()
-        scroll.documentView?.setFrameSize(NSSize(width: bounds.width - 32, height: max(scroll.bounds.height, stack.fittingSize.height)))
-        scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView)
     }
 }
 
 private final class TrashRow: NSView {
     var highlighted = false { didSet { needsDisplay = true } }
     override func draw(_ dirtyRect: NSRect) {
-        Theme.trash.withAlphaComponent(highlighted ? 0.8 : 1).setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
-        let paragraph = NSMutableParagraphStyle(); paragraph.alignment = .center
-        ("Drop here to delete" as NSString).draw(in: NSRect(x: 8, y: 9, width: bounds.width - 16, height: 18), withAttributes: [
-            .font: NSFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: NSColor.white, .paragraphStyle: paragraph
-        ])
+        let circle = NSBezierPath(ovalIn: bounds.insetBy(dx: 1, dy: 1))
+        (highlighted ? Theme.trash : Theme.background).withAlphaComponent(0.96).setFill(); circle.fill()
+        Theme.trash.withAlphaComponent(highlighted ? 1 : 0.55).setStroke(); circle.lineWidth = 1.5; circle.stroke()
+        let image = NSImage(systemSymbolName: "trash.fill", accessibilityDescription: nil)!
+        let config = NSImage.SymbolConfiguration(pointSize: 23, weight: .medium)
+            .applying(.init(paletteColors: [highlighted ? .white : Theme.trash]))
+        image.withSymbolConfiguration(config)?.draw(in: NSRect(x: 15, y: 14, width: 22, height: 24))
     }
 }
 
 final class PanelView: NSView {
     let store: ClipboardStore
-    var onCopy: ((String) -> Void)?
+    var onCopy: ((String) -> Bool)?
     var onSettings: ((NSButton) -> Void)?
     var onClose: (() -> Void)?
-    var onUpdate: (() -> Void)?
-    private let updateButton = NSButton(title: "发现新版本 · 更新", target: nil, action: nil)
-    private let pinnedCard: SectionCard
-    private let recentCard: SectionCard
+    var onResize: ((NSSize) -> Void)?
+    var onUpdate: (() -> Void)? // Kept for isolated updater QA; actual action lives in Settings.
+    private let pinnedSection = BubbleSection(pinned: true)
+    private let recentSection = BubbleSection(pinned: false)
+    private let material = NSVisualEffectView()
     private let trash = TrashRow()
-    private let footer = NSTextField(labelWithString: "Click a pin to copy · Click a recent copy to pin")
+    private let footer = NSTextField(labelWithString: "")
+    private let undoButton = NSButton(title: L("Undo"), target: nil, action: nil)
+    private let titleLabel = NSTextField(labelWithString: "ClipNest")
+    private var settingsButton: NSButton!
     private var buttons: [SnippetRow] = []
     private var identities: [(Bool, UUID)] = []
-    private var selected = 0
-    private var settingsButton: NSButton?
+    private var selected = -1
+    private var dragging = false
+    private var animating = false
+    private var lifted: SnippetRow?
+    private var undoTimer: Timer?
+    private var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     override var acceptsFirstResponder: Bool { true }
     init(store: ClipboardStore) {
         self.store = store
-        pinnedCard = SectionCard(frame: NSRect(x: 16, y: 242, width: 348, height: 230), pinned: true)
-        recentCard = SectionCard(frame: NSRect(x: 16, y: 62, width: 348, height: 162), pinned: false)
-        super.init(frame: NSRect(x: 0, y: 0, width: 380, height: 538))
-        let appSymbol = NSImageView(frame: NSRect(x: 18, y: 492, width: 20, height: 20))
-        appSymbol.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)
-        appSymbol.contentTintColor = Theme.accent; addSubview(appSymbol)
-        let title = NSTextField(labelWithString: "ClipNest")
-        title.font = .systemFont(ofSize: 17, weight: .semibold); title.textColor = Theme.primary
-        title.frame = NSRect(x: 46, y: 490, width: 250, height: 24); addSubview(title)
-        let settings = NSButton(image: NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Settings")!, target: self, action: #selector(settingsClicked(_:)))
-        settings.isBordered = false; settings.contentTintColor = Theme.secondary
-        settings.frame = NSRect(x: 334, y: 489, width: 28, height: 26)
-        settings.setAccessibilityLabel("Settings"); settings.setAccessibilityHelp("Open settings. Keyboard shortcut Command Comma.")
-        settingsButton = settings; addSubview(settings)
-        addSubview(pinnedCard); addSubview(recentCard)
-        footer.frame = NSRect(x: 18, y: 18, width: 344, height: 20)
-        footer.font = .systemFont(ofSize: 11); footer.textColor = Theme.secondary; addSubview(footer)
-        trash.frame = NSRect(x: 16, y: 13, width: 348, height: 36)
-        trash.isHidden = true; addSubview(trash)
-        updateButton.frame = NSRect(x: 18, y: 13, width: 344, height: 30)
-        updateButton.bezelStyle = .recessed; updateButton.contentTintColor = Theme.accent
-        updateButton.target = self; updateButton.action = #selector(updateClicked)
-        updateButton.isHidden = true; addSubview(updateButton)
+        super.init(frame: NSRect(x: 0, y: 0, width: 380, height: 410))
+        material.frame = bounds; material.autoresizingMask = [.width, .height]
+        material.material = .popover; material.blendingMode = .behindWindow; material.state = .active
+        addSubview(material)
+        titleLabel.font = .systemFont(ofSize: 16, weight: .semibold); titleLabel.textColor = Theme.primary; addSubview(titleLabel)
+        settingsButton = NSButton(image: NSImage(systemSymbolName: "ellipsis", accessibilityDescription: L("Settings"))!, target: self, action: #selector(settingsClicked(_:)))
+        settingsButton.isBordered = false; settingsButton.contentTintColor = Theme.secondary
+        settingsButton.setAccessibilityLabel(L("Settings")); settingsButton.setAccessibilityHelp(L("Open settings. Keyboard shortcut Command Comma.")); addSubview(settingsButton)
+        addSubview(pinnedSection); addSubview(recentSection)
+        footer.font = .systemFont(ofSize: 11); footer.textColor = Theme.secondary; footer.lineBreakMode = .byTruncatingTail; addSubview(footer)
+        undoButton.isBordered = false; undoButton.contentTintColor = Theme.accent
+        undoButton.target = self; undoButton.action = #selector(undoClicked); undoButton.isHidden = true; addSubview(undoButton)
+        trash.isHidden = true; trash.setAccessibilityLabel(L("Trash — drop to delete")); addSubview(trash)
         refresh()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    override func draw(_ dirtyRect: NSRect) { Theme.background.setFill(); bounds.fill() }
+    override func draw(_ dirtyRect: NSRect) {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency { Theme.background.setFill(); bounds.fill() }
+    }
     override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        needsDisplay = true
-        for child in subviews { child.needsDisplay = true }
-        for button in buttons { button.needsDisplay = true }
+        super.viewDidChangeEffectiveAppearance(); needsDisplay = true
+        for button in buttons { button.needsDisplay = true }; lifted?.needsDisplay = true
     }
-    func showUpdateAvailable(_ available: Bool) {
-        updateButton.isHidden = !available || !trash.isHidden
-        updateButton.tag = available ? 1 : 0
-        footer.isHidden = available || !trash.isHidden
-    }
-    @objc private func updateClicked() { onUpdate?() }
+    func showUpdateAvailable(_ available: Bool) { /* Updates use Settings only, never a permanent footer. */ }
     @objc private func settingsClicked(_ sender: NSButton) { onSettings?(sender) }
     func refresh() {
+        guard !dragging && !animating else { return }
         let focusedID = identities.indices.contains(selected) ? identities[selected].1 : nil
-        let scrollOrigin = pinnedCard.scroll.contentView.bounds.origin
-        pinnedCard.clear(); recentCard.clear(); buttons = []; identities = []
-        for item in store.pinned { row(item, pinned: true) }
-        for item in store.recent { row(item, pinned: false) }
-        selected = focusedID.flatMap { id in identities.firstIndex(where: { $0.1 == id }) } ?? min(selected, max(0, buttons.count - 1))
-        pinnedCard.finish(count: store.pinned.count); recentCard.finish(count: store.recent.count)
-        let maximumY = max(0, (pinnedCard.scroll.documentView?.bounds.height ?? 0) - pinnedCard.scroll.contentSize.height)
-        pinnedCard.scroll.contentView.scroll(to: NSPoint(x: 0, y: min(scrollOrigin.y, maximumY)))
-        pinnedCard.scroll.reflectScrolledClipView(pinnedCard.scroll.contentView)
-        updateFocus()
-        if store.error != nil { footer.stringValue = "Pins file unreadable. See Settings → About." }
+        let origin = pinnedSection.scroll.contentView.bounds.origin
+        buttons = []; identities = []
+        for item in store.sortedPins { makeRow(item, pinned: true) }
+        let pinRows = buttons
+        for item in store.recent { makeRow(item, pinned: false) }
+        let recentRows = Array(buttons.dropFirst(pinRows.count))
+        selected = focusedID.flatMap { id in identities.firstIndex(where: { $0.1 == id }) } ?? -1
+        // Grow smoothly up to nine pins; thereafter only pins scroll. Recent copies remain visible.
+        let desiredPinHeight = CGFloat(max(1, min(store.pinned.count, 9))) * 42 + 28
+        let screenLimit = (window?.screen ?? NSScreen.main)?.visibleFrame.height ?? 900
+        let pinHeight = min(desiredPinHeight, max(112, screenLimit - 382))
+        let recentHeight: CGFloat = 154
+        let height = pinHeight + recentHeight + 138
+        setFrameSize(NSSize(width: 380, height: height))
+        titleLabel.frame = NSRect(x: 20, y: height - 43, width: 280, height: 23)
+        settingsButton.frame = NSRect(x: 332, y: height - 44, width: 28, height: 26)
+        recentSection.frame = NSRect(x: 20, y: 48, width: 340, height: recentHeight)
+        pinnedSection.frame = NSRect(x: 20, y: 224, width: 340, height: pinHeight)
+        pinnedSection.arrange(pinRows, count: store.pinned.count); recentSection.arrange(recentRows, count: store.recent.count)
+        let maxY = max(0, pinnedSection.document.bounds.height - pinnedSection.scroll.contentSize.height)
+        pinnedSection.scroll.contentView.scroll(to: NSPoint(x: 0, y: min(origin.y, maxY)))
+        pinnedSection.scroll.reflectScrolledClipView(pinnedSection.scroll.contentView)
+        footer.frame = NSRect(x: 22, y: 15, width: undoButton.isHidden ? 336 : 274, height: 18)
+        undoButton.frame = NSRect(x: 299, y: 10, width: 62, height: 28)
+        if !dragging { trash.frame = NSRect(x: 285, y: bounds.height - 185, width: 52, height: 52) }
+        if footer.stringValue.isEmpty { footer.stringValue = L("Pins copy · Recent copies pin") }
+        if store.error != nil { footer.stringValue = L("Pins file unreadable. See Settings → About.") }
+        updateFocus(); onResize?(frame.size)
     }
-    private func row(_ item: Snippet, pinned: Bool) {
+    private func makeRow(_ item: Snippet, pinned: Bool) {
         let text = item.text.components(separatedBy: .newlines).joined(separator: "  ")
         let button = SnippetRow(title: String(text.prefix(180)), target: self, action: #selector(rowClicked(_:)))
-        button.isPinned = pinned; button.tag = buttons.count
-        button.isBordered = false; button.font = .systemFont(ofSize: 13)
-        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        button.widthAnchor.constraint(equalToConstant: 316).isActive = true
-        button.setAccessibilityLabel("\(pinned ? "Copy pinned snippet" : "Pin recent copy"): \(String(text.prefix(180)))")
-        button.setAccessibilityHelp(pinned ? "Click to copy. Drag to red trash row to delete. Command Delete deletes selected pin." : "Click to save as a pinned snippet.")
+        button.isPinned = pinned; button.tag = buttons.count; button.isBordered = false
+        button.setAccessibilityLabel(L(pinned ? "Copy pinned snippet" : "Pin recent copy") + ": " + String(text.prefix(180)))
+        button.setAccessibilityHelp(L(pinned ? "Copy and drag help" : "Click to save as a pinned snippet."))
         button.dragAction = { [weak self] row, event in self?.drag(row, first: event) }
         buttons.append(button); identities.append((pinned, item.id))
-        (pinned ? pinnedCard : recentCard).stack.addArrangedSubview(button)
     }
     @objc private func rowClicked(_ sender: SnippetRow) {
+        guard !dragging && !animating, buttons.contains(where: { $0 === sender }) else { return }
         selected = sender.tag; activateSelection(); window?.makeFirstResponder(self)
     }
     private func activateSelection() {
-        guard identities.indices.contains(selected) else { return }
+        guard !dragging && !animating, identities.indices.contains(selected) else { return }
         let (pin, id) = identities[selected]
         if pin, let item = store.pinned.first(where: { $0.id == id }) {
-            onCopy?(item.text); footer.stringValue = "Copied — paste wherever you need it"
+            guard onCopy?(item.text) == true else { footer.stringValue = L("Could not copy. Try again."); return }
+            _ = store.recordCopy(id)
+            onClose?() // Successful pasteboard write closes immediately; ranking refreshes next open.
         } else {
-            if store.recent.first(where: { $0.id == id }).map({ recent in store.pinned.contains(where: { $0.text == recent.text }) }) == true { footer.stringValue = "Already pinned" }
-            else if store.pin(id) { footer.stringValue = "Pinned — click it above to copy" }
-            else { footer.stringValue = "Could not save pin. Check storage permissions." }
+            if store.recent.first(where: { $0.id == id }).map({ recent in store.pinned.contains(where: { $0.text == recent.text }) }) == true {
+                footer.stringValue = L("Already pinned"); return
+            }
+            guard store.pin(id) else { footer.stringValue = L("Could not save pin. Check storage permissions."); return }
+            footer.stringValue = L("Pinned")
+            let source = buttons[selected]
+            let start = source.convert(source.bounds, to: self)
             refresh()
+            guard let destinationIndex = identities.firstIndex(where: { $0.0 && $0.1 == id }) else { return }
+            let destination = buttons[destinationIndex]
+            destination.scrollToVisible(destination.bounds)
+            let target = destination.convert(destination.bounds, to: self)
+            let preview = floatingBubble(title: source.title, frame: start)
+            destination.alphaValue = 0.35; animating = true
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = reduceMotion ? 0 : 0.22
+                preview.animator().frame = target
+                destination.animator().alphaValue = 1
+            } completionHandler: { [weak self, weak preview] in preview?.removeFromSuperview(); self?.animating = false; self?.refresh() }
         }
         updateFocus()
     }
+    private func floatingBubble(title: String, frame: NSRect) -> SnippetRow {
+        let preview = SnippetRow(title: title, target: nil, action: nil)
+        preview.isPinned = true; preview.frame = frame; preview.wantsLayer = true
+        preview.shadow = NSShadow(); preview.shadow?.shadowColor = NSColor.black.withAlphaComponent(0.25)
+        preview.shadow?.shadowBlurRadius = 12; preview.shadow?.shadowOffset = NSSize(width: 0, height: -3)
+        preview.setAccessibilityElement(false); addSubview(preview, positioned: .below, relativeTo: trash); return preview
+    }
+    private func removePin(_ id: UUID, row: SnippetRow?) {
+        guard store.delete(id) else { footer.stringValue = L("Could not save deletion. Pin was kept."); return }
+        footer.stringValue = L("Deleted"); undoButton.isHidden = false
+        undoTimer?.invalidate(); undoTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in
+            self?.undoButton.isHidden = true; self?.footer.stringValue = L("Pins copy · Recent copies pin"); self?.refresh()
+        }
+        animating = true
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = reduceMotion ? 0 : 0.16
+            row?.animator().alphaValue = 0
+            if let row, !reduceMotion { row.animator().frame.size.height = 0 }
+        } completionHandler: { [weak self] in self?.animating = false; self?.refresh() }
+    }
+    @objc private func undoClicked() {
+        guard !dragging && !animating else { return }
+        store.undoDelete(); undoButton.isHidden = !store.canUndo
+        footer.stringValue = L(store.canUndo ? "Could not undo deletion." : "Restored")
+        undoTimer?.invalidate(); refresh()
+    }
     private func drag(_ row: SnippetRow, first: NSEvent) {
-        guard identities.indices.contains(row.tag) else { return }
+        guard !animating, identities.indices.contains(row.tag), identities[row.tag].0 else { return }
         let id = identities[row.tag].1
-        showDeletionTarget(true); defer { showDeletionTarget(false) }
+        dragging = true
+        let sourceFrame = row.convert(row.bounds, to: self)
+        let preview = floatingBubble(title: row.title, frame: sourceFrame); lifted = preview; row.placeholder = true
+        let initial = convert(row.dragOriginInWindow ?? first.locationInWindow, from: nil)
+        positionTrash(near: initial, source: sourceFrame)
+        showDeletionTarget(true)
+        let offset = NSPoint(x: initial.x - sourceFrame.minX, y: initial.y - sourceFrame.minY)
+        defer { preview.removeFromSuperview(); lifted = nil; row.placeholder = false; dragging = false; showDeletionTarget(false); refresh() }
         var event = first
         while true {
             let point = convert(event.locationInWindow, from: nil)
+            preview.frame.origin = NSPoint(x: point.x - offset.x, y: point.y - offset.y)
             let inside = trash.frame.contains(point); trash.highlighted = inside
             if event.type == .leftMouseUp {
-                if inside {
-                    if store.delete(id) { footer.stringValue = "Deleted — Settings → Undo Delete"; refresh() }
-                    else { footer.stringValue = "Could not save deletion. Pin was kept." }
-                } else { footer.stringValue = "Deletion cancelled" }
+                if inside { removePin(id, row: row) } else { footer.stringValue = L("Deletion cancelled") }
                 return
             }
-            if event.type == .keyDown && event.keyCode == 53 { footer.stringValue = "Deletion cancelled"; return }
+            if event.type == .keyDown && event.keyCode == 53 { footer.stringValue = L("Deletion cancelled"); return }
             guard let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp, .keyDown]) else { return }
             event = next
         }
@@ -257,23 +286,24 @@ final class PanelView: NSView {
         for (index, button) in buttons.enumerated() { button.state = index == selected ? .on : .off; button.needsDisplay = true }
     }
     override func keyDown(with event: NSEvent) {
+        guard !animating && !dragging else { return }
         if event.modifierFlags.contains(.command) {
-            if event.charactersIgnoringModifiers == "z" { store.undoDelete(); refresh(); return }
-            if event.charactersIgnoringModifiers == ",", let button = settingsButton { onSettings?(button); return }
+            if event.charactersIgnoringModifiers == "z" { undoClicked(); return }
+            if event.charactersIgnoringModifiers == "," { onSettings?(settingsButton); return }
             if event.charactersIgnoringModifiers == "q" { NSApp.terminate(nil); return }
         }
         switch event.keyCode {
-        case 125, 48: selected = buttons.isEmpty ? 0 : (selected + (event.modifierFlags.contains(.shift) ? buttons.count - 1 : 1)) % buttons.count
-        case 126: selected = max(0, selected - 1)
+        case 125, 48: selected = buttons.isEmpty ? -1 : (selected + (event.modifierFlags.contains(.shift) ? buttons.count - 1 : 1) + buttons.count) % buttons.count
+        case 126: selected = buttons.isEmpty ? -1 : max(0, selected - 1)
         case 36, 49: activateSelection(); return
         case 53: onClose?(); return
         case 51, 117:
             if event.modifierFlags.contains(.command), identities.indices.contains(selected), identities[selected].0 {
                 let id = identities[selected].1
-                let alert = NSAlert(); alert.messageText = "Delete selected pinned snippet?"
-                alert.informativeText = "You can undo this from Settings until the next deletion."
-                alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Delete")
-                if alert.runModal() == .alertSecondButtonReturn { _ = store.delete(id); refresh() }
+                let alert = NSAlert(); alert.messageText = L("Delete selected pinned snippet?")
+                alert.informativeText = L("You can undo this from Settings until the next deletion.")
+                alert.addButton(withTitle: L("Cancel")); alert.addButton(withTitle: L("Delete"))
+                if alert.runModal() == .alertSecondButtonReturn { removePin(id, row: buttons[selected]) }
             }
             return
         default: super.keyDown(with: event); return
@@ -281,8 +311,22 @@ final class PanelView: NSView {
         updateFocus()
         if buttons.indices.contains(selected) { buttons[selected].scrollToVisible(buttons[selected].bounds) }
     }
-    // Shared visual state for real drag tracking and isolated review rendering.
-    func showDeletionTarget(_ visible: Bool) { trash.isHidden = !visible; footer.isHidden = visible || updateButton.tag == 1; updateButton.isHidden = visible || updateButton.tag == 0; trash.highlighted = false }
+    private func positionTrash(near point: NSPoint, source: NSRect) {
+        // Stable throughout a drag. Choose the reachable side, clamp inside the popover.
+        trash.frame = DragTargetGeometry.target(origin: point, source: source, bounds: bounds)
+    }
+    func showDeletionTarget(_ visible: Bool) {
+        trash.isHidden = !visible; footer.isHidden = visible; undoButton.isHidden = visible || !store.canUndo; trash.highlighted = false
+    }
+    // Synthetic previews exercise the same drawing and placeholder as the real local drag.
+    func previewDrag() {
+        guard let row = buttons.first else { return }
+        let source = row.convert(row.bounds, to: self)
+        positionTrash(near: NSPoint(x: 225, y: source.midY), source: source)
+        showDeletionTarget(true); row.placeholder = true
+        lifted = floatingBubble(title: row.title, frame: source.offsetBy(dx: -12, dy: -16))
+        trash.highlighted = true
+    }
     func capture(to url: URL) {
         layoutSubtreeIfNeeded()
         guard let rep = bitmapImageRepForCachingDisplay(in: bounds) else { return }

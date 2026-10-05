@@ -8,9 +8,9 @@ final class QuietUpdateDriver: SPUStandardUserDriver {
     private var pending: (SUAppcastItem, SPUUserUpdateState, (SPUUserUpdateChoice) -> Void)?
     override func show(_ request: SPUUpdatePermissionRequest, reply: @escaping (SUUpdatePermissionResponse) -> Void) {
         let alert = NSAlert()
-        alert.messageText = "Check for ClipNest updates daily?"
-        alert.informativeText = "Update checks contact public GitHub over HTTPS. GitHub sees your IP address and ordinary HTTP metadata. Clipboard contents and system profiling are never sent. Updates download only after you click Update. You can change this in Settings."
-        alert.addButton(withTitle: "Check Daily"); alert.addButton(withTitle: "Only Manually")
+        alert.messageText = L("Check for ClipNest updates daily?")
+        alert.informativeText = L("Update privacy")
+        alert.addButton(withTitle: L("Check Daily")); alert.addButton(withTitle: L("Only Manually"))
         let allow = alert.runModal() == .alertFirstButtonReturn
         reply(SUUpdatePermissionResponse(automaticUpdateChecks: allow, automaticUpdateDownloading: false, sendSystemProfile: false))
     }
@@ -19,6 +19,10 @@ final class QuietUpdateDriver: SPUStandardUserDriver {
     }
     override func showUpdateFound(with appcastItem: SUAppcastItem, state: SPUUserUpdateState, reply: @escaping (SPUUserUpdateChoice) -> Void) {
         // Both manual and scheduled checks stop here. Nothing downloads before a click.
+        let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+        guard appcastItem.versionString.compare(current, options: .numeric) == .orderedDescending else {
+            pending = nil; onAvailability?(false); reply(.dismiss); return
+        }
         pending = (appcastItem, state, reply)
         onAvailability?(true)
     }

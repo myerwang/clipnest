@@ -25,8 +25,9 @@ final class ClipboardMonitor {
         guard !ClipboardPolicy.isSensitive(types), let text = board.string(forType: .string), ClipboardPolicy.accepts(text) else { return }
         store.ingest(text); onChange?()
     }
-    func copy(_ text: String) {
-        board.clearContents(); board.setString(text, forType: .string)
+     @discardableResult func copy(_ text: String) -> Bool {
+        board.clearContents(); let succeeded = board.setString(text, forType: .string)
         count = board.changeCount // Suppress exactly our own write; future external repeats still count.
+        return succeeded
     }
 }

@@ -5,15 +5,25 @@ import ClipNestCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var status: NSStatusItem!
+    let loginLaunch = LoginLaunch()
+    var guide: MenuBarGuide?
     let popover = NSPopover()
     var store: ClipboardStore!
     var monitor: ClipboardMonitor!
     var panel: PanelView!
-    let testing = CommandLine.arguments.contains("--ui-test") || CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--review-previews") || CommandLine.arguments.contains("--appearance-previews")
+    let testing = Bundle.main.bundleIdentifier?.contains(".qa") == true || CommandLine.arguments.contains("--qa-window") || CommandLine.arguments.contains("--ui-test") || CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--review-previews") || CommandLine.arguments.contains("--appearance-previews")
+    var qaWindow: NSWindow?
     var sampleIndex = 0
+    var updateAvailable = false
     let updates = UpdateController()
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        // LaunchServices normally reopens the first instance. Also guard direct executable launches.
+        if let id = Bundle.main.bundleIdentifier,
+           let existing = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == id && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
+            existing.activate(options: []); NSApp.terminate(nil); return
+        }
+        loginLaunch.disabledForQA = testing
+        NSApp.setActivationPolicy(CommandLine.arguments.contains("--qa-window") ? .regular : .accessory)
         let file: URL
         let board: NSPasteboard
         if testing {
@@ -26,22 +36,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         store = ClipboardStore(file: file); monitor = ClipboardMonitor(store: store, board: board)
         panel = PanelView(store: store)
-        panel.onCopy = { [weak self] text in self?.monitor.copy(text) }
-        panel.onClose = { [weak self] in self?.popover.performClose(nil) }
+        panel.onCopy = { [weak self] text in self?.monitor.copy(text) ?? false }
+        panel.onClose = { [weak self] in self?.popover.performClose(nil); self?.qaWindow?.orderOut(nil) }
+        panel.onResize = { [weak self] size in self?.popover.contentSize = size }
         panel.onSettings = { [weak self] button in self?.showSettings(button) }
         monitor.onChange = { [weak self] in self?.panel.refresh() }
         let controller = NSViewController(); controller.view = panel
         popover.contentViewController = controller; popover.contentSize = panel.frame.size; popover.behavior = .transient
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = MenuBarIcon.make()
-        status.button?.image?.isTemplate = true; status.button?.toolTip = "ClipNest — pinned snippets + last 3 copies"
+        status.button?.image?.isTemplate = true; status.button?.toolTip = L("ClipNest — pinned snippets + last 3 copies")
         status.button?.target = self; status.button?.action = #selector(toggle)
-        status.button?.setAccessibilityLabel("ClipNest clipboard")
+        status.button?.setAccessibilityLabel(L("ClipNest clipboard"))
         monitor.start()
-        updates.onAvailability = { [weak self] available in self?.panel.showUpdateAvailable(available) }
+        updates.onAvailability = { [weak self] available in self?.updateAvailable = available }
         panel.onUpdate = { [weak self] in self?.updates.showUpdate() }
-        if !testing { updates.start() }
+        if !testing {
+            updates.start()
+            let event = NSAppleEventManager.shared().currentAppleEvent
+            let atLogin = event?.paramDescriptor(forKeyword: AEKeyword(keyAELaunchedAsLogInItem)) != nil
+            let asService = event?.paramDescriptor(forKeyword: AEKeyword(keyAELaunchedAsServiceItem)) != nil
+            if !atLogin && !asService { showGuide() }
+        }
         if testing {
+            if CommandLine.arguments.contains("--qa-window") {
+                for index in 1...12 {
+                    store.ingest("Synthetic pin \(index) — a small, clear clipboard helper")
+                    _ = store.pin(store.recent[0].id)
+                }
+                for index in 1...3 { store.ingest("Synthetic recent \(index) — click to pin") }
+                panel.refresh()
+                let window = NSWindow(contentRect: panel.frame, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+                window.title = "ClipNest Synthetic QA"; window.contentView = panel; qaWindow = window
+                panel.onResize = { [weak window] size in window?.setContentSize(size) }
+                window.center(); window.makeKeyAndOrderFront(nil); window.makeFirstResponder(panel)
+                NSApp.activate(ignoringOtherApps: true); return
+            }
             if CommandLine.arguments.contains("--review-previews") || CommandLine.arguments.contains("--appearance-previews") {
                 renderReviewPreviews()
                 return
@@ -71,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ]
         for (index, text) in samples.enumerated() {
             monitor.board.clearContents(); monitor.board.setString(text, forType: .string); monitor.poll()
-            if index < 5 { _ = store.pin(store.recent[0].id) }
+            if index < 7 { _ = store.pin(store.recent[0].id) }
         }
         if CommandLine.arguments.contains("--appearance-previews") {
             panel.appearance = NSAppearance(named: .aqua)
@@ -88,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     panel.showUpdateAvailable(true)
                     panel.capture(to: root.appendingPathComponent("ClipNest-Dark-Update.png"))
                     panel.showUpdateAvailable(false)
-                    panel.showDeletionTarget(true)
+                    panel.previewDrag()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
                         panel.capture(to: root.appendingPathComponent("ClipNest-Dark-Trash.png"))
                         NSApp.terminate(nil)
@@ -99,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
             panel.capture(to: root.appendingPathComponent("ClipNest-01-list.png"))
-            panel.showDeletionTarget(true)
+            panel.previewDrag()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
                 panel.capture(to: root.appendingPathComponent("ClipNest-02-drag-trash.png"))
                 let empty = PanelView(store: ClipboardStore(file: root.appendingPathComponent("empty/pins.json")))
@@ -121,24 +151,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     func showSettings(_ sender: NSButton) {
         let menu = NSMenu()
-        menu.addItem(withTitle: monitor.paused ? "Resume Clipboard Capture" : "Pause Clipboard Capture", action: #selector(pause), keyEquivalent: "")
-        let undo = menu.addItem(withTitle: "Undo Delete", action: #selector(undo), keyEquivalent: "z"); undo.isEnabled = store.canUndo
+        menu.addItem(withTitle: monitor.paused ? L("Resume Clipboard Capture") : L("Pause Clipboard Capture"), action: #selector(pause), keyEquivalent: "")
+        let undo = menu.addItem(withTitle: L("Undo Delete"), action: #selector(undo), keyEquivalent: "z"); undo.isEnabled = store.canUndo
         menu.addItem(.separator())
-        let check = menu.addItem(withTitle: updates.configured ? "Check for Updates…" : "Updates Not Configured", action: #selector(checkUpdates), keyEquivalent: "")
+        if updateAvailable { menu.addItem(withTitle: L("Update Available…"), action: #selector(showAvailableUpdate), keyEquivalent: "") }
+        let check = menu.addItem(withTitle: updates.configured ? L("Check for Updates…") : L("Updates Not Configured"), action: #selector(checkUpdates), keyEquivalent: "")
         check.isEnabled = !testing && updates.canCheck
         if updates.configured {
-            let automatic = menu.addItem(withTitle: "Check Daily for Updates", action: #selector(toggleUpdateChecks), keyEquivalent: "")
+            let automatic = menu.addItem(withTitle: L("Check Daily for Updates"), action: #selector(toggleUpdateChecks), keyEquivalent: "")
             automatic.state = updates.automaticChecks ? .on : .off
         }
-        menu.addItem(withTitle: "About & Privacy", action: #selector(about), keyEquivalent: "")
+        menu.addItem(withTitle: L("Menu Bar & Startup…"), action: #selector(showGuide), keyEquivalent: "")
+        let loginItem = menu.addItem(withTitle: L("Launch at Login"), action: #selector(toggleLoginLaunch), keyEquivalent: "")
+        loginItem.state = loginLaunch.status == .enabled ? .on : loginLaunch.status == .requiresApproval ? .mixed : .off
+        loginItem.isEnabled = !testing
+        let languageItem = menu.addItem(withTitle: L("Language"), action: nil, keyEquivalent: "")
+        let languageMenu = NSMenu()
+        let system = languageMenu.addItem(withTitle: L("Follow System"), action: #selector(changeLanguage(_:)), keyEquivalent: "")
+        system.tag = -1; system.target = self; system.state = AppLanguage.override == nil ? .on : .off
+        for (index, code) in AppLanguage.supported.enumerated() {
+            let item = languageMenu.addItem(withTitle: AppLanguage.names[index], action: #selector(changeLanguage(_:)), keyEquivalent: "")
+            item.tag = index; item.target = self; item.state = AppLanguage.override == code ? .on : .off
+        }
+        languageItem.submenu = languageMenu
+        menu.addItem(withTitle: L("About & Privacy"), action: #selector(about), keyEquivalent: "")
         if testing {
             menu.addItem(withTitle: "QA: Copy Next Synthetic Sample", action: #selector(testCopy), keyEquivalent: "")
             menu.addItem(withTitle: "QA: Save Synthetic Screenshot", action: #selector(testScreenshot), keyEquivalent: "")
         }
-        menu.addItem(.separator()); menu.addItem(withTitle: "Quit ClipNest", action: #selector(quit), keyEquivalent: "q")
+        menu.addItem(.separator()); menu.addItem(withTitle: L("Quit ClipNest"), action: #selector(quit), keyEquivalent: "q")
         menu.autoenablesItems = false
         for item in menu.items { item.target = self }
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.minY), in: sender)
+    }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if let qaWindow { panel.refresh(); qaWindow.makeKeyAndOrderFront(nil); qaWindow.makeFirstResponder(panel) }
+        else { showGuide() }
+        return false
+    }
+    @objc func showGuide() {
+        if status == nil || !status.isVisible {
+            status?.isVisible = true // Restore our own status item; never change system preferences.
+        }
+        if guide == nil { guide = MenuBarGuide(login: loginLaunch); guide?.onQuit = { NSApp.terminate(nil) } }
+        guide?.present()
+    }
+    @objc func toggleLoginLaunch() { loginLaunch.toggle(); guide?.reload(); if loginLaunch.status == .requiresApproval { showGuide() } }
+    @objc func showAvailableUpdate() { updates.showUpdate() }
+    @objc func changeLanguage(_ item: NSMenuItem) {
+        AppLanguage.select(item.tag < 0 ? nil : AppLanguage.supported[item.tag])
+        // Rebuild the complete panel, including accessibility and empty state labels.
+        let wasShown = popover.isShown
+        popover.performClose(nil)
+        let replacement = PanelView(store: store)
+        replacement.onCopy = panel.onCopy; replacement.onClose = panel.onClose
+        replacement.onSettings = panel.onSettings; replacement.onResize = panel.onResize
+        panel = replacement; popover.contentViewController?.view = panel; popover.contentSize = panel.frame.size
+        guide?.reload()
+        status.button?.toolTip = L("ClipNest — pinned snippets + last 3 copies")
+        status.button?.setAccessibilityLabel(L("ClipNest clipboard"))
+        if let qaWindow {
+            qaWindow.contentView = panel; qaWindow.setContentSize(panel.frame.size)
+            panel.onResize = { [weak qaWindow] size in qaWindow?.setContentSize(size) }
+            qaWindow.makeKeyAndOrderFront(nil); qaWindow.makeFirstResponder(panel)
+        } else if wasShown { toggle() }
     }
     @objc func checkUpdates() { updates.check() }
     @objc func toggleUpdateChecks() { updates.toggleAutomaticChecks() }
@@ -147,7 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func quit() { NSApp.terminate(nil) }
     @objc func about() {
         let alert = NSAlert(); alert.messageText = "ClipNest"
-        alert.informativeText = "Unlimited pinned snippets, only your last 3 distinct text copies.\n\nPins are stored locally as plain text. Recent copies disappear on quit. Update checks contact public GitHub over HTTPS with your permission; no clipboard uploads or system profiling. No analytics. Marked private/password/transient contents are skipped; unmarked sensitive text cannot be identified.\n\nKeyboard: ↑ ↓ or Tab to select, Return to copy/pin, ⌘Delete to delete a pin, ⌘Z to undo, ⌘, for Settings, ⌘Q to quit, Esc to close.\n\nDrag a pin onto the red trash row to delete; release elsewhere to cancel.\n\n" + (store.error ?? "macOS 13+. No auto-start or special permissions.")
+        alert.informativeText = L("About privacy") + (store.error == nil ? "" : "\n\n" + L("Storage load error"))
         alert.runModal()
     }
     @objc func testCopy() {
@@ -191,7 +268,9 @@ func integrationTest() {
     store.undoDelete(); precondition(ClipboardStore(file: file).pinned.count == 5)
     print("PASS: isolated AppKit pasteboard capture/copy, own-write suppression, privacy markers, pause, recent 3, pins >3, delete/undo and restart persistence")
 }
-if CommandLine.arguments.contains("--update-qa") { updateQATest() }
+if CommandLine.arguments.contains("--interaction-qa") { interactionQA() }
+else if CommandLine.arguments.contains("--localization-qa") { localizationQA() }
+else if CommandLine.arguments.contains("--update-qa") { updateQATest() }
 else if CommandLine.arguments.contains("--integration-test") { integrationTest() }
 else {
     let app = NSApplication.shared

@@ -5,7 +5,16 @@ import Foundation
 public struct Snippet: Codable, Equatable, Identifiable {
     public let id: UUID
     public let text: String
-    public init(text: String) { id = UUID(); self.text = text }
+    public private(set) var copyCount: UInt64
+    public init(text: String) { id = UUID(); self.text = text; copyCount = 0 }
+    private enum CodingKeys: String, CodingKey { case id, text, copyCount }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        text = try values.decode(String.self, forKey: .text)
+        copyCount = try values.decodeIfPresent(UInt64.self, forKey: .copyCount) ?? 0
+    }
+    fileprivate mutating func recordCopy() { if copyCount < UInt64.max { copyCount += 1 } }
 }
 
 public enum ClipboardPolicy {
@@ -31,6 +40,18 @@ public final class ClipboardStore {
     private let file: URL
     private var lastDeleted: (Int, Snippet)?
     public var canUndo: Bool { lastDeleted != nil }
+    // Usage descending; equal counts retain original pin order, across launches.
+    public var sortedPins: [Snippet] {
+        pinned.enumerated().sorted {
+            $0.element.copyCount == $1.element.copyCount ? $0.offset < $1.offset : $0.element.copyCount > $1.element.copyCount
+        }.map(\.element)
+    }
+    // Only call after NSPasteboard confirms a successful write. No reordering during interaction.
+    @discardableResult public func recordCopy(_ id: UUID) -> Bool {
+        guard let index = pinned.firstIndex(where: { $0.id == id }) else { return false }
+        let old = pinned; pinned[index].recordCopy()
+        return persist(orRestore: old)
+    }
     public init(file: URL) {
         self.file = file
         guard FileManager.default.fileExists(atPath: file.path) else { return }
