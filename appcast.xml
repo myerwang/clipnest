@@ -2,12 +2,12 @@
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
 --><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
 <channel><title>ClipNest Updates</title><link>https://github.com/myerwang/clipnest</link><description>Signed ClipNest development releases</description><language>en</language>
-<item><title>ClipNest 0.1.3</title><link>https://github.com/myerwang/clipnest/releases/tag/v0.1.3</link>
-<sparkle:version>4</sparkle:version><sparkle:shortVersionString>0.1.3</sparkle:shortVersionString>
+<item><title>ClipNest 0.1.4</title><link>https://github.com/myerwang/clipnest/releases/tag/v0.1.4</link>
+<sparkle:version>5</sparkle:version><sparkle:shortVersionString>0.1.4</sparkle:shortVersionString>
 <sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion><sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
 <description sparkle:format="plain-text">Developer ID signed and Apple notarized, with stapled tickets. Menu bar clipboard MVP. Interactive updater replacement end-to-end verification remains outstanding.</description>
-<enclosure url="https://github.com/myerwang/clipnest/releases/download/v0.1.3/ClipNest-0.1.3-macos-arm64.zip" sparkle:edSignature="S4FkiHiojjNLrkcsRegbMlcBG+4VKqxfBkMlpasp32i24Mlqr0OVX0lUvun0hm/Pgx1UsoMlN+Bs8p5BmWqkBg==" length="2999649" type="application/octet-stream"></enclosure>
+<enclosure url="https://github.com/myerwang/clipnest/releases/download/v0.1.4/ClipNest-0.1.4-macos-arm64.zip" sparkle:edSignature="3CpAhMX1fX18y4XmkHxkp1ggKIhowuib6b8JavU5R2Rx8sOz3jB6GMjstxn2PB0Hr16x9GfNFpYqpxk+IuQvBg==" length="3060765" type="application/octet-stream"></enclosure>
 </item></channel></rss><!-- sparkle-signatures:
-edSignature: gHHBTdxELIADlQu9g4xLE98iRJVppqVWb+mFNX0F1IwO2F2WfqaHK/MptnNUbNW9OL0GW+6Um3j26GyCFByfDw==
+edSignature: mO51YGZxJnsvoW2bUXYmbIWwVTF3R0Rh0GqxeuOprtG+bJrl9UpEhBiAcrLPYusluYuVpCCWjCTfUeN/TXZNAA==
 length: 1418
 -->
