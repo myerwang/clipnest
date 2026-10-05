@@ -33,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let controller = NSViewController(); controller.view = panel
         popover.contentViewController = controller; popover.contentSize = panel.frame.size; popover.behavior = .transient
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        status.button?.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "ClipNest")
+        status.button?.image = MenuBarIcon.make()
         status.button?.image?.isTemplate = true; status.button?.toolTip = "ClipNest — pinned snippets + last 3 copies"
         status.button?.target = self; status.button?.action = #selector(toggle)
         status.button?.setAccessibilityLabel("ClipNest clipboard")

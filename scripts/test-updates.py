@@ -4,6 +4,8 @@ import base64, http.server, pathlib, plistlib, shutil, subprocess, tempfile, thr
 from xml.sax.saxutils import escape
 root=pathlib.Path(tempfile.mkdtemp(prefix='clipnest-update-qa-'))
 archive=b'Untrusted synthetic update content'
+production_info=plistlib.loads(pathlib.Path('/tmp/clipnest-bundle/ClipNest.app/Contents/Info.plist').read_bytes())
+current_build=int(production_info['CFBundleVersion'])
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self,*args): pass
     def do_GET(self):
@@ -16,7 +18,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if case=='archive.zip': body=archive
         elif case=='malformed': body=b'<rss><broken'
         else:
-            version='1' if case=='same' else '2'
+            version=str(current_build if case=='same' else current_build+1)
             minimum='99.0' if case=='incompatible' else '13.0'
             signature=base64.b64encode(bytes(64)).decode()
             body=('<?xml version="1.0"?><rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><title>QA</title><item><title>Synthetic</title><sparkle:minimumSystemVersion>'+minimum+'</sparkle:minimumSystemVersion><enclosure url="http://127.0.0.1:'+str(self.server.server_port)+'/archive.zip" sparkle:version="'+version+'" sparkle:shortVersionString="0.1.1" sparkle:edSignature="'+signature+'" length="'+str(len(archive))+'" type="application/octet-stream"/></item></channel></rss>').encode()

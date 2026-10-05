@@ -2,12 +2,12 @@
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
 --><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
 <channel><title>ClipNest Updates</title><link>https://github.com/myerwang/clipnest</link><description>Signed ClipNest development releases</description><language>en</language>
-<item><title>ClipNest 0.1.0</title><link>https://github.com/myerwang/clipnest/releases/tag/v0.1.0</link>
-<sparkle:version>1</sparkle:version><sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+<item><title>ClipNest 0.1.1</title><link>https://github.com/myerwang/clipnest/releases/tag/v0.1.1</link>
+<sparkle:version>2</sparkle:version><sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
 <sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion><sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
 <description sparkle:format="plain-text">Development MVP. Ad-hoc signed, not notarized. Installer replacement end-to-end verification remains outstanding.</description>
-<enclosure url="https://github.com/myerwang/clipnest/releases/download/v0.1.0/ClipNest-0.1.0-macos-arm64.zip" sparkle:edSignature="ETFEpcD57Vpr7x2t2VPf3q9dLI2FaT056v6ELDXQym90+nfh9AtFc6LVKaL9/jgixQ2k/GQ9LJim69sJvdxeDw==" length="1088323" type="application/octet-stream"></enclosure>
+<enclosure url="https://github.com/myerwang/clipnest/releases/download/v0.1.1/ClipNest-0.1.1-macos-arm64.zip" sparkle:edSignature="jb7N4YiJOVAD0/VkZH1h+oxS1bKZ0C3fZjbMEDKbSlTACAaQ5iZLLdR3vOf8u8+KD9zQaqOH32ITdVsFRSZrCg==" length="2889820" type="application/octet-stream"></enclosure>
 </item></channel></rss><!-- sparkle-signatures:
-edSignature: SQCIgmdjgOjs2XqPSOQBFbGNG82NHKXZ1NNB+6VgGuM4WQcXWEhlRRHm2RAHW812L9AGDqqiSYsXJQrB52suBg==
+edSignature: AUcdwvbe6yLa5iGuj79y9FKR9pI1mCVgaQX9jYGxEkQvJBQMbxLT+hebinNsj/uQC45aV1SVy4AvESnmruNiAQ==
 length: 1368
 -->

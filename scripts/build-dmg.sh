@@ -2,8 +2,9 @@
 # Package an existing release ZIP; never rebuild, re-sign or alter the updater ZIP/feed.
 set -eu
 cd "$(dirname "$0")/.."
-archive=${1:-dist/ClipNest-0.1.0-macos-arm64.zip}
-output=dist/ClipNest-0.1.0-macos-arm64.dmg
+version=$(python3 -c 'import json; print(json.load(open("config/version.json"))["version"])')
+archive=${1:-dist/ClipNest-$version-macos-arm64.zip}
+output=dist/ClipNest-$version-macos-arm64.dmg
 if [ -e "$output" ]; then echo 'DMG already exists; refusing to overwrite.' >&2; exit 1; fi
 staging=$(mktemp -d /tmp/clipnest-dmg-stage.XXXXXX)
 trap 'rmdir "$staging" 2>/dev/null || true' EXIT
@@ -12,8 +13,8 @@ ditto -x -k "$archive" "$staging/content"
 test -d "$staging/content/ClipNest.app"
 codesign --verify --deep --strict "$staging/content/ClipNest.app"
 ln -s /Applications "$staging/content/Applications"
-cat > "$staging/content/INSTALL.txt" <<'INSTALL'
-ClipNest 0.1.0 — macOS 13+, Apple silicon
+cat > "$staging/content/INSTALL.txt" <<INSTALL
+ClipNest $version — macOS 13+, Apple silicon
 
 Drag ClipNest.app onto Applications. Eject this disk image, then launch
 ClipNest from Applications. Its icon appears only in the menu bar.

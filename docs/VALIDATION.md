@@ -17,3 +17,9 @@ Distribution: app is ad-hoc signed, not Developer ID signed or notarized; Gateke
 ## DMG first-install package
 
 The 0.1.0 DMG was packaged from the already-published ZIP without rebuild/re-signing. hdiutil image checksum passed. A read-only mount verified the full ClipNest.app file/symlink inventory matched the released ZIP, Applications linked to /Applications, installation text was present, and codesign --deep --strict passed. The exact test volume was detached and checked unmounted; no installed app was touched. ZIP/feed remain unchanged. DMG is not notarized and does not bypass Gatekeeper.
+
+## Local 0.1.1 icon candidate
+
+Native build, six XCTest cases and isolated clipboard integration passed again. Complete ten-size ICNS built from approved PNG using only faithful resize/format conversion; application Info.plist embeds the icon. Actual NSWorkspace icon render on this Mac showed normal rounded presentation without a white corner square; earlier macOS rendering has not been verified. Same 18pt isTemplate glyph with two internal lines rendered through NSImageView for aqua/darkAqua, with no annotation circle. This remains offscreen native API validation, not real Finder/menu-bar screenshot or mouse acceptance.
+
+New DMG created from new ZIP; image checksum, read-only mounted app/symlink inventory equality, icon-resource presence, nested codesign and exact own-volume detach passed. Original0.1.0 ZIP unchanged. New ZIP/feed signatures and independent modified-input rejection passed; seven Sparkle-engine feed scenarios passed for build2. Installer replacement/relaunch and blocked bad-signature download case retain the previously stated limitations.
