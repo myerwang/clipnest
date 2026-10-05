@@ -3,6 +3,10 @@
 import AppKit
 import ClipNestCore
 
+enum AppLinks {
+    static let officialRepository = URL(string: "https://github.com/myerwang/clipnest")!
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var status: NSStatusItem!
     let loginLaunch = LoginLaunch()
@@ -27,9 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let file: URL
         let board: NSPasteboard
         if testing {
-            let root = ProcessInfo.processInfo.environment["CLIPNEST_QA_DIR"] ?? NSTemporaryDirectory() + "clipnest-ui-qa"
+            let root = ProcessInfo.processInfo.environment["CLIPNEST_QA_DIR"] ?? NSTemporaryDirectory() + (Bundle.main.bundleIdentifier ?? "app.clipnest.qa")
             file = URL(fileURLWithPath: root).appendingPathComponent("pins.json")
-            board = NSPasteboard(name: .init("app.clipnest.qa"))
+            board = NSPasteboard(name: .init((Bundle.main.bundleIdentifier ?? "app.clipnest.qa") + ".pasteboard"))
         } else {
             file = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("ClipNest/pins.json")
             board = .general
@@ -67,10 +71,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 for index in 1...3 { store.ingest("Synthetic recent \(index) — click to pin") }
                 panel.refresh()
                 let window = NSWindow(contentRect: panel.frame, styleMask: [.titled, .closable], backing: .buffered, defer: false)
-                window.title = "ClipNest Synthetic QA"; window.contentView = panel; qaWindow = window
+                window.title = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "ClipNest") + " — Synthetic"; window.contentView = panel; qaWindow = window
                 panel.onResize = { [weak window] size in window?.setContentSize(size) }
                 window.center(); window.makeKeyAndOrderFront(nil); window.makeFirstResponder(panel)
-                NSApp.activate(ignoringOtherApps: true); return
+                NSApp.activate(ignoringOtherApps: true)
+                let readiness: [String: Any] = ["visible": window.isVisible, "bundle": Bundle.main.bundleIdentifier ?? "", "defaults": Bundle.main.bundleIdentifier ?? "", "pins": file.path, "pasteboard": board.name.rawValue, "updaterStarted": false, "loginDisabled": loginLaunch.disabledForQA]
+                if let data = try? JSONSerialization.data(withJSONObject: readiness, options: [.prettyPrinted, .sortedKeys]) {
+                    try? data.write(to: file.deletingLastPathComponent().appendingPathComponent("trial-ready.json"), options: .atomic)
+                }
+                return
             }
             if CommandLine.arguments.contains("--review-previews") || CommandLine.arguments.contains("--appearance-previews") {
                 renderReviewPreviews()
@@ -142,6 +151,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     @objc func toggle() {
+        if let qaWindow {
+            panel.refresh(); qaWindow.makeKeyAndOrderFront(nil); qaWindow.makeFirstResponder(panel)
+            NSApp.activate(ignoringOtherApps: true); return
+        }
         guard let button = status.button else { return }
         if popover.isShown { popover.performClose(nil) }
         else {
@@ -160,6 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if updates.configured {
             let automatic = menu.addItem(withTitle: L("Check Daily for Updates"), action: #selector(toggleUpdateChecks), keyEquivalent: "")
             automatic.state = updates.automaticChecks ? .on : .off
+            automatic.isEnabled = !testing
         }
         menu.addItem(withTitle: L("Menu Bar & Startup…"), action: #selector(showGuide), keyEquivalent: "")
         let loginItem = menu.addItem(withTitle: L("Launch at Login"), action: #selector(toggleLoginLaunch), keyEquivalent: "")
@@ -174,6 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.tag = index; item.target = self; item.state = AppLanguage.override == code ? .on : .off
         }
         languageItem.submenu = languageMenu
+        menu.addItem(withTitle: L("Official Repository"), action: #selector(openOfficialRepository), keyEquivalent: "")
         menu.addItem(withTitle: L("About & Privacy"), action: #selector(about), keyEquivalent: "")
         if testing {
             menu.addItem(withTitle: "QA: Copy Next Synthetic Sample", action: #selector(testCopy), keyEquivalent: "")
@@ -222,6 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func pause() { monitor.paused.toggle() }
     @objc func undo() { store.undoDelete(); panel.refresh() }
     @objc func quit() { NSApp.terminate(nil) }
+    @objc func openOfficialRepository() { NSWorkspace.shared.open(AppLinks.officialRepository) }
     @objc func about() {
         let alert = NSAlert(); alert.messageText = "ClipNest"
         alert.informativeText = L("About privacy") + (store.error == nil ? "" : "\n\n" + L("Storage load error"))
@@ -234,7 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.poll()
     }
     @objc func testScreenshot() {
-        let root = ProcessInfo.processInfo.environment["CLIPNEST_QA_DIR"] ?? NSTemporaryDirectory() + "clipnest-ui-qa"
+        let root = ProcessInfo.processInfo.environment["CLIPNEST_QA_DIR"] ?? NSTemporaryDirectory() + (Bundle.main.bundleIdentifier ?? "app.clipnest.qa")
         try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
         panel.capture(to: URL(fileURLWithPath: root).appendingPathComponent("screenshot.png"))
     }
@@ -268,7 +284,10 @@ func integrationTest() {
     store.undoDelete(); precondition(ClipboardStore(file: file).pinned.count == 5)
     print("PASS: isolated AppKit pasteboard capture/copy, own-write suppression, privacy markers, pause, recent 3, pins >3, delete/undo and restart persistence")
 }
-if CommandLine.arguments.contains("--interaction-qa") { interactionQA() }
+if CommandLine.arguments.contains("--paper-mesh-seed-qa") { paperMeshSeedQA() }
+else if CommandLine.arguments.contains("--paper-mesh-prototype-qa") { paperMeshPrototypeQA() }
+else if CommandLine.arguments.contains("--motion-previews") { motionPreviewQA() }
+else if CommandLine.arguments.contains("--interaction-qa") { interactionQA() }
 else if CommandLine.arguments.contains("--localization-qa") { localizationQA() }
 else if CommandLine.arguments.contains("--update-qa") { updateQATest() }
 else if CommandLine.arguments.contains("--integration-test") { integrationTest() }

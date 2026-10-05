@@ -2,6 +2,7 @@
 // Relationship: AppDelegate supplies ClipboardStore and success-aware copy/settings callbacks.
 // Development status: complete.
 import AppKit
+import QuartzCore
 import ClipNestCore
 
 private enum Theme {
@@ -27,7 +28,35 @@ final class SnippetRow: NSButton {
     var dragAction: ((SnippetRow, NSEvent) -> Void)?
     var isPinned = false
     private(set) var dragOriginInWindow: NSPoint?
-    var placeholder = false { didSet { needsDisplay = true } }
+    private var hoverTracking: NSTrackingArea?
+    private let hoverLayer = CALayer()
+    override init(frame: NSRect) {
+        super.init(frame: frame); wantsLayer = true
+        hoverLayer.opacity = 0; hoverLayer.cornerRadius = 11; layer?.addSublayer(hoverLayer)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func layout() {
+        super.layout(); hoverLayer.frame = bounds.insetBy(dx: 1, dy: 1)
+        hoverLayer.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.08).cgColor
+    }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTracking { removeTrackingArea(hoverTracking) }
+        let area = NSTrackingArea(rect: .zero, options: [.inVisibleRect, .mouseEnteredAndExited, .activeInActiveApp], owner: self)
+        hoverTracking = area; addTrackingArea(area)
+    }
+    private func hover(_ visible: Bool) {
+        let value: Float = visible && !placeholder ? 1 : 0
+        let from = hoverLayer.presentation()?.opacity ?? hoverLayer.opacity
+        CATransaction.begin(); CATransaction.setDisableActions(true); hoverLayer.opacity = value; CATransaction.commit()
+        guard window?.isVisible == true else { return }
+        let animation = CABasicAnimation(keyPath: "opacity"); animation.fromValue = from; animation.toValue = value
+        animation.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0.08 : 0.12
+        hoverLayer.add(animation, forKey: "hover")
+    }
+    override func mouseEntered(with event: NSEvent) { hover(true) }
+    override func mouseExited(with event: NSEvent) { hover(false) }
+    var placeholder = false { didSet { if placeholder { hover(false) }; needsDisplay = true } }
     override func draw(_ dirtyRect: NSRect) {
         let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 11, yRadius: 11)
         (isPinned ? Theme.pin : Theme.recent).withAlphaComponent(placeholder ? 0.18 : NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.68).setFill(); shape.fill()
@@ -92,18 +121,6 @@ private final class BubbleSection: NSView {
     }
 }
 
-private final class TrashRow: NSView {
-    var highlighted = false { didSet { needsDisplay = true } }
-    override func draw(_ dirtyRect: NSRect) {
-        let circle = NSBezierPath(ovalIn: bounds.insetBy(dx: 1, dy: 1))
-        (highlighted ? Theme.trash : Theme.background).withAlphaComponent(0.96).setFill(); circle.fill()
-        Theme.trash.withAlphaComponent(highlighted ? 1 : 0.55).setStroke(); circle.lineWidth = 1.5; circle.stroke()
-        let image = NSImage(systemSymbolName: "trash.fill", accessibilityDescription: nil)!
-        let config = NSImage.SymbolConfiguration(pointSize: 23, weight: .medium)
-            .applying(.init(paletteColors: [highlighted ? .white : Theme.trash]))
-        image.withSymbolConfiguration(config)?.draw(in: NSRect(x: 15, y: 14, width: 22, height: 24))
-    }
-}
 
 final class PanelView: NSView {
     let store: ClipboardStore
@@ -115,7 +132,7 @@ final class PanelView: NSView {
     private let pinnedSection = BubbleSection(pinned: true)
     private let recentSection = BubbleSection(pinned: false)
     private let material = NSVisualEffectView()
-    private let trash = TrashRow()
+    private let trash = TrashTarget()
     private let footer = NSTextField(labelWithString: "")
     private let undoButton = NSButton(title: L("Undo"), target: nil, action: nil)
     private let titleLabel = NSTextField(labelWithString: "ClipNest")
@@ -125,8 +142,9 @@ final class PanelView: NSView {
     private var selected = -1
     private var dragging = false
     private var animating = false
-    private var lifted: SnippetRow?
+    private var lifted: DragPreview?
     private var undoTimer: Timer?
+    private var undoExpiresAt: Date?
     private var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     override var acceptsFirstResponder: Bool { true }
     init(store: ClipboardStore) {
@@ -221,41 +239,48 @@ final class PanelView: NSView {
             let destination = buttons[destinationIndex]
             destination.scrollToVisible(destination.bounds)
             let target = destination.convert(destination.bounds, to: self)
-            let preview = floatingBubble(title: source.title, frame: start)
+            let preview = floatingBubble(title: source.title, frame: start, usesMesh: false)
             destination.alphaValue = 0.35; animating = true
+            if reduceMotion { preview.alphaValue = 0 }
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = reduceMotion ? 0 : 0.22
-                preview.animator().frame = target
+                context.duration = reduceMotion ? 0.08 : 0.18
+                if !reduceMotion { preview.animator().frame = target }
                 destination.animator().alphaValue = 1
             } completionHandler: { [weak self, weak preview] in preview?.removeFromSuperview(); self?.animating = false; self?.refresh() }
         }
         updateFocus()
     }
-    private func floatingBubble(title: String, frame: NSRect) -> SnippetRow {
-        let preview = SnippetRow(title: title, target: nil, action: nil)
-        preview.isPinned = true; preview.frame = frame; preview.wantsLayer = true
-        preview.shadow = NSShadow(); preview.shadow?.shadowColor = NSColor.black.withAlphaComponent(0.25)
-        preview.shadow?.shadowBlurRadius = 12; preview.shadow?.shadowOffset = NSSize(width: 0, height: -3)
-        preview.setAccessibilityElement(false); addSubview(preview, positioned: .below, relativeTo: trash); return preview
+    private func floatingBubble(title: String, frame: NSRect, seed: UInt64? = nil, clock: (() -> TimeInterval)? = nil, usesMesh: Bool = true) -> DragPreview {
+        let preview = DragPreview(title: title, frame: frame, seed: seed, clock: clock, usesMesh: usesMesh, appearance: effectiveAppearance)
+        addSubview(preview, positioned: .above, relativeTo: trash)
+        return preview
     }
-    private func removePin(_ id: UUID, row: SnippetRow?) {
-        guard store.delete(id) else { footer.stringValue = L("Could not save deletion. Pin was kept."); return }
-        footer.stringValue = L("Deleted"); undoButton.isHidden = false
+    @discardableResult private func removePin(_ id: UUID, row: SnippetRow?, preview: DragPreview? = nil) -> Bool {
+        guard store.delete(id) else { footer.stringValue = L("Could not save deletion. Pin was kept."); return false }
+        footer.stringValue = L("Deleted"); undoButton.isHidden = false; undoExpiresAt = Date().addingTimeInterval(5)
         undoTimer?.invalidate(); undoTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in
             self?.undoButton.isHidden = true; self?.footer.stringValue = L("Pins copy · Recent copies pin"); self?.refresh()
         }
         animating = true
+        preview?.stopMotion()
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = reduceMotion ? 0 : 0.16
+            context.duration = reduceMotion ? 0.08 : 0.24
             row?.animator().alphaValue = 0
+            preview?.animator().alphaValue = 0
             if let row, !reduceMotion { row.animator().frame.size.height = 0 }
-        } completionHandler: { [weak self] in self?.animating = false; self?.refresh() }
+        } completionHandler: { [weak self, weak preview, weak row] in
+            preview?.removeFromSuperview(); row?.placeholder = false
+            self?.lifted = nil; self?.showDeletionTarget(false)
+            self?.animating = false; self?.refresh()
+        }
+        if preview != nil { trash.dismiss() }
+        return true
     }
     @objc private func undoClicked() {
         guard !dragging && !animating else { return }
         store.undoDelete(); undoButton.isHidden = !store.canUndo
         footer.stringValue = L(store.canUndo ? "Could not undo deletion." : "Restored")
-        undoTimer?.invalidate(); refresh()
+        undoTimer?.invalidate(); if !store.canUndo { undoExpiresAt = nil }; refresh()
     }
     private func drag(_ row: SnippetRow, first: NSEvent) {
         guard !animating, identities.indices.contains(row.tag), identities[row.tag].0 else { return }
@@ -267,14 +292,19 @@ final class PanelView: NSView {
         positionTrash(near: initial, source: sourceFrame)
         showDeletionTarget(true)
         let offset = NSPoint(x: initial.x - sourceFrame.minX, y: initial.y - sourceFrame.minY)
-        defer { preview.removeFromSuperview(); lifted = nil; row.placeholder = false; dragging = false; showDeletionTarget(false); refresh() }
+        var deleted = false
+        defer {
+            dragging = false
+            if !deleted { returnDragPreview(preview, to: sourceFrame, row: row) }
+        }
         var event = first
         while true {
             let point = convert(event.locationInWindow, from: nil)
-            preview.frame.origin = NSPoint(x: point.x - offset.x, y: point.y - offset.y)
+            let pointerFrame = NSRect(x: point.x - offset.x, y: point.y - offset.y, width: sourceFrame.width, height: sourceFrame.height)
             let inside = trash.frame.contains(point); trash.highlighted = inside
+            preview.follow(pointerFrame: pointerFrame, trashFrame: trash.frame, inside: inside, reduceMotion: reduceMotion)
             if event.type == .leftMouseUp {
-                if inside { removePin(id, row: row) } else { footer.stringValue = L("Deletion cancelled") }
+                if inside { deleted = removePin(id, row: row, preview: preview) } else { footer.stringValue = L("Deletion cancelled") }
                 return
             }
             if event.type == .keyDown && event.keyCode == 53 { footer.stringValue = L("Deletion cancelled"); return }
@@ -315,17 +345,40 @@ final class PanelView: NSView {
         // Stable throughout a drag. Choose the reachable side, clamp inside the popover.
         trash.frame = DragTargetGeometry.target(origin: point, source: source, bounds: bounds)
     }
-    func showDeletionTarget(_ visible: Bool) {
-        trash.isHidden = !visible; footer.isHidden = visible; undoButton.isHidden = visible || !store.canUndo; trash.highlighted = false
+    private func returnDragPreview(_ preview: DragPreview, to source: NSRect, row: SnippetRow) {
+        animating = true; trash.dismiss()
+        preview.returnTo(source, reduceMotion: reduceMotion)
+        if reduceMotion { preview.alphaValue = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.08 : 0.52)) { [weak self, weak preview, weak row] in
+            guard let self, let preview, self.lifted === preview else { return }
+            preview.stopMotion(); preview.removeFromSuperview(); row?.placeholder = false
+            self.lifted = nil; self.showDeletionTarget(false)
+            self.animating = false; self.refresh()
+        }
     }
-    // Synthetic previews exercise the same drawing and placeholder as the real local drag.
-    func previewDrag() {
+    func showDeletionTarget(_ visible: Bool) {
+        if visible { trash.reveal() } else { trash.dismiss() }
+        footer.isHidden = visible
+        undoButton.isHidden = visible || !store.canUndo || (undoExpiresAt ?? .distantPast) < Date()
+    }
+    // Synthetic rendering only; it does not constitute actual mouse-drop verification.
+    func previewDrag(highlighted: Bool = true, seed: UInt64? = nil, clock: (() -> TimeInterval)? = nil) {
         guard let row = buttons.first else { return }
         let source = row.convert(row.bounds, to: self)
         positionTrash(near: NSPoint(x: 225, y: source.midY), source: source)
-        showDeletionTarget(true); row.placeholder = true
-        lifted = floatingBubble(title: row.title, frame: source.offsetBy(dx: -12, dy: -16))
-        trash.highlighted = true
+        footer.isHidden = true; undoButton.isHidden = true; row.placeholder = true
+        lifted?.removeFromSuperview()
+        lifted = floatingBubble(title: row.title, frame: source.offsetBy(dx: -12, dy: -16), seed: seed, clock: clock)
+        trash.setPreview(highlighted: highlighted)
+        lifted?.follow(pointerFrame: source.offsetBy(dx: -12, dy: -16), trashFrame: trash.frame, inside: highlighted, reduceMotion: false, animated: false)
+    }
+    var previewTrashFrame: NSRect { trash.frame }
+    var previewSourceFrame: NSRect { buttons.first.map { $0.convert($0.bounds, to: self).offsetBy(dx: -12, dy: -16) } ?? .zero }
+    var previewCapsule: DragPreview? { lifted }
+    func previewDragEnded() {
+        lifted?.removeFromSuperview(); lifted = nil
+        for row in buttons { row.placeholder = false }
+        trash.setPreview(highlighted: false, visible: false); footer.isHidden = false
     }
     func capture(to url: URL) {
         layoutSubtreeIfNeeded()

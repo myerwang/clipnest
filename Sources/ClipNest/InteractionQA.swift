@@ -29,6 +29,13 @@ func interactionQA() {
     precondition(board.string(forType: .string) == "Synthetic A")
     precondition(ClipboardStore(file: root.appendingPathComponent("pins.json")).sortedPins.first?.text == "Synthetic A")
     print("PASS: AppKit action callbacks; failed copy remains open/unranked, successful private-board copy closes immediately and persists usage")
+    let repository = AppLinks.officialRepository
+    precondition(repository.absoluteString == "https://github.com/myerwang/clipnest")
+    precondition(repository.scheme == "https" && repository.host == "github.com" && repository.path == "/myerwang/clipnest")
+    precondition(repository.query == nil && repository.fragment == nil && repository.user == nil && repository.password == nil)
+    print("PASS: official repository target is fixed HTTPS; no credentials, query or tracking parameters; no browser opened by QA")
+    motionTargetQA()
+    dragFoldQA()
     loginLaunchQA()
     localizationQA()
 }
@@ -45,6 +52,7 @@ func localizationQA() {
         let keys = Set(dictionary.keys)
         if let expectedKeys { precondition(keys == expectedKeys) } else { expectedKeys = keys }
         precondition(dictionary.values.allSatisfy { !$0.isEmpty })
+        precondition(dictionary["Official Repository"]?.isEmpty == false)
         precondition(L("Pinned snippets") == dictionary["Pinned snippets"])
         precondition(L("Menu bar guidance") == dictionary["Menu bar guidance"])
         precondition(AppLanguage.bundle.bundlePath.hasSuffix(language + ".lproj"))
@@ -65,4 +73,42 @@ func loginLaunchQA() {
     login.toggle(); precondition(state == .notRegistered && unregisters == 2)
     state = .notFound; precondition(login.summary == L("Login unavailable"))
     print("PASS: injected login-service transitions and approval/unavailable guidance; zero real registration or reboot")
+}
+
+func motionTargetQA() {
+    let target = TrashTarget(frame: NSRect(x: 80, y: 100, width: 52, height: 52))
+    let hit = target.frame
+    func settle() {
+        let until = Date().addingTimeInterval(0.22)
+        while Date() < until { _ = RunLoop.main.run(mode: .default, before: until) }
+    }
+    target.reveal(animated: false); precondition(!target.isHidden)
+    for index in 0..<80 { target.highlighted = index % 2 == 0; precondition(target.frame == hit) }
+    target.dismiss(); target.reveal(animated: false); settle()
+    precondition(!target.isHidden && target.frame == hit) // Stale dismiss must not hide a fresh drag.
+    target.dismiss(); settle(); precondition(target.isHidden && target.frame == hit)
+    print("PASS: native trash stable 52pt hit area, rapid hover changes, reveal/dismiss cancellation token and final hidden state; no OS input")
+}
+
+func dragFoldQA() {
+    let source=NSRect(x:20,y:180,width:340,height:36),hit=NSRect(x:240,y:110,width:52,height:52)
+    var time:TimeInterval=0
+    let preview=DragPreview(title:"Synthetic mesh safety",frame:source,seed:13,clock:{time})
+    preview.follow(pointerFrame:source,trashFrame:hit,inside:true,reduceMotion:false)
+    var last:Float=0
+    for progress in [0.25,0.5,0.75,1.0] {
+        time=progress*0.5;preview.advance();precondition(preview.pose.progress>last);last=preview.pose.progress
+        precondition(preview.text=="Synthetic mesh safety" && preview.subviews.isEmpty)
+    }
+    precondition(!preview.isAnimating && preview.pose.progress==1)
+    preview.follow(pointerFrame:source,trashFrame:hit,inside:false,reduceMotion:false)
+    time += 0.1;preview.advance();let interrupted=preview.pose
+    preview.follow(pointerFrame:source,trashFrame:hit,inside:true,reduceMotion:false)
+    precondition(preview.pose.progress==interrupted.progress && preview.pose.center==interrupted.center)
+    for index in 0..<20 {time += 0.01;preview.follow(pointerFrame:source,trashFrame:hit,inside:index%2==0,reduceMotion:false)}
+    preview.follow(pointerFrame:source,trashFrame:hit,inside:false,reduceMotion:true,animated:false)
+    preview.follow(pointerFrame:source,trashFrame:hit,inside:true,reduceMotion:true,animated:false)
+    precondition(preview.pose.progress==0 && preview.pose.center==NSPoint(x:source.midX,y:source.midY) && !preview.isAnimating)
+    preview.stopMotion()
+    print("PASS: accepted 128-face original-texture 0.5s mesh at 25/50/75%, interrupt continuity, rapid reversals, idle timer stops, Reduce Motion static; no data actions")
 }

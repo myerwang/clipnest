@@ -58,3 +58,5 @@
 "Menu bar guidance" = "Use ClipNest from the menu bar at the top of your screen. Click the two-line clipboard icon for pinned snippets and your last 3 copies. This window offers configuration and guidance only.\n\nIf the icon is missing, switch to Finder and check near the notch or the hidden area of any menu bar manager. ClipNest never changes system settings automatically.\n\nClosing this window keeps ClipNest running. Quitting ClipNest removes the icon. Open it again from Applications to restore it.";
 "Trash — drop to delete" = "Trash — drop to delete";
 "Copy and drag help" = "Click to copy. Drag to the nearby trash icon to delete. Command Delete deletes selected pin.";
+
+"Official Repository" = "Official Repository";

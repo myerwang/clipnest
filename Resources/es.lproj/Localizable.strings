@@ -58,3 +58,5 @@
 "Menu bar guidance" = "Usa ClipNest desde la barra de menús superior. Haz clic en el icono del portapapeles con dos líneas para ver los textos fijados y las 3 últimas copias. Esta ventana solo ofrece configuración y ayuda.\n\nSi no ves el icono, cambia a Finder y revisa el área junto a la muesca o los iconos ocultos por gestores de la barra. No se cambian ajustes del sistema automáticamente.\n\nCerrar esta ventana mantiene la app activa; salir de ClipNest quita el icono. Abre de nuevo desde Aplicaciones para recuperarlo.";
 "Trash — drop to delete" = "Papelera — suelta para eliminar";
 "Copy and drag help" = "Haz clic para copiar. Arrastra a la papelera cercana para eliminar. Comando Suprimir elimina la selección.";
+
+"Official Repository" = "Repositorio oficial";

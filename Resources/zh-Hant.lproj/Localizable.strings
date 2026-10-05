@@ -58,3 +58,5 @@
 "Menu bar guidance" = "ClipNest 的日常操作都在螢幕頂部選單列。點按雙橫線剪貼簿圖示，查看固定內容與最近 3 則複製。此視窗僅提供設定與指引。\n\n找不到圖示時：切換至 Finder，檢查瀏海旁與第三方選單列管理器收起的區域。App 不會自行變更系統設定。\n\n關閉視窗仍在背景執行；結束 ClipNest 才會移除圖示。下次從應用程式資料夾開啟即可恢復。";
 "Trash — drop to delete" = "回收站 — 放入刪除";
 "Copy and drag help" = "點按複製。拖到旁邊的回收站圖示刪除。Command Delete 刪除選取的固定項。";
+
+"Official Repository" = "官方儲存庫";

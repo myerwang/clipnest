@@ -58,3 +58,5 @@
 "Menu bar guidance" = "ClipNest 的日常操作都在屏幕顶部菜单栏。点击双横线剪贴板图标，查看固定内容和最近 3 条复制。此窗口只用于配置和指引。\n\n如果找不到图标：试着切换到 Finder，检查刘海旁和第三方菜单栏管理器收起的区域。App 不会自行更改系统设置。\n\n关闭此窗口仍在后台运行；退出 ClipNest 才会移除图标。下次从应用程序文件夹打开即可恢复。";
 "Trash — drop to delete" = "回收站 — 放入删除";
 "Copy and drag help" = "点击复制。拖到旁边的回收站图标删除。Command Delete 删除选中的固定项。";
+
+"Official Repository" = "官方仓库";

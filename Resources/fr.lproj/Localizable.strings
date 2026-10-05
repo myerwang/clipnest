@@ -58,3 +58,5 @@
 "Menu bar guidance" = "Utilisez ClipNest dans la barre des menus en haut de l’écran. Cliquez sur le presse-papiers à deux lignes pour voir les textes épinglés et les 3 dernières copies. Cette fenêtre sert aux réglages et à l’aide.\n\nSi l’icône manque, passez au Finder et vérifiez près de l’encoche ou les icônes masquées par un gestionnaire de barre. Aucun réglage système n’est modifié automatiquement.\n\nFermer cette fenêtre laisse l’app active ; quitter ClipNest retire l’icône. Rouvrez depuis Applications pour la retrouver.";
 "Trash — drop to delete" = "Corbeille — déposer pour supprimer";
 "Copy and drag help" = "Cliquez pour copier. Glissez vers la corbeille voisine pour supprimer. Commande Supprimer efface la sélection.";
+
+"Official Repository" = "Dépôt officiel";

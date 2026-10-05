@@ -58,3 +58,5 @@
 "Menu bar guidance" = "ClipNest wird über die Menüleiste oben am Bildschirm bedient. Klicke auf das Zwischenablagesymbol mit zwei Linien, um angeheftete Texte und die letzten 3 Kopien zu sehen. Dieses Fenster dient nur Einstellungen und Hilfe.\n\nFehlt das Symbol, wechsle zu Finder und prüfe neben der Aussparung sowie ausgeblendete Symbole in Menüleisten-Managern. Systemeinstellungen werden nicht automatisch geändert.\n\nFenster schließen lässt die App weiterlaufen; ClipNest beenden entfernt das Symbol. Erneut aus Programme öffnen stellt es wieder her.";
 "Trash — drop to delete" = "Papierkorb — ablegen zum Löschen";
 "Copy and drag help" = "Klicken zum Kopieren. Zum nahen Papierkorb ziehen zum Löschen. Befehl Löschen entfernt die Auswahl.";
+
+"Official Repository" = "Offizielles Repository";
