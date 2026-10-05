@@ -25,6 +25,12 @@ Long text is shown as a single truncated preview; the full text is kept. Arrow k
 
 These review screenshots are rendered from the actual AppKit panel with synthetic data in an isolated QA mode. The list demonstrates pinned snippets exceeding three and recent history capped at three. They are layout previews, **not evidence of a completed real mouse/keyboard usability test**. No personal clipboard content is included.
 
+## Install the development preview
+
+Download [ClipNest 0.1.0 DMG](https://github.com/myerwang/clipnest/releases/download/v0.1.0/ClipNest-0.1.0-macos-arm64.dmg) for first installation (Apple silicon, macOS13+). Open the disk image, drag **ClipNest.app → Applications**, eject it, then launch ClipNest from Applications. The icon appears in the menu bar. Do not run from the read-only image. Verify the download with the release's `SHA256SUMS-DMG.txt` if desired.
+
+The DMG contains the exact same app as the release ZIP, plus an Applications shortcut and installation instructions. **It is still ad-hoc signed and not notarized; a DMG does not bypass Gatekeeper.** No system security setting is changed. The original ZIP remains the signed Sparkle update archive.
+
 ## Build and run
 
 Requires macOS 13 or later, Xcode/Apple Swift tooling. Sparkle 2.10.0 is the only external dependency, pinned exactly through Swift Package Manager.
@@ -36,7 +42,7 @@ open dist/ClipNest.app
 
 The build script uses temporary Swift caches and the native SwiftPM build backend to avoid restricted cache writes and Xcode test-bundle extended-attribute failures observed in the development workspace. The backend flag is deprecated in Swift 6.4 but remains supported. On a normal unrestricted checkout, `swift build -c release` and `swift test` also work without these overrides.
 
-The app is locally **ad-hoc signed, not notarized or signed by an Apple Developer distribution certificate**. It is a development MVP, not an App Store release. The GitHub release archive contains `ClipNest.app`; unzip and place it in Applications if desired. No installer or login item is added. Intel builds require building from source on Intel; the provided development build is arm64.
+The app is locally **ad-hoc signed, not notarized or signed by an Apple Developer distribution certificate**. It is a development MVP, not an App Store release. The DMG is recommended for first installation; the ZIP is kept for Sparkle updates and optional manual extraction. No installer or login item is added. Intel builds require building from source on Intel; the provided development build is arm64.
 
 ## Tests
 

@@ -13,3 +13,7 @@ Blocked: attempted bad-signature download scenario hits installer-launch error40
 Not performed: real mouse drag/drop, keyboard/scroll usability, GUI quit/relaunch persistence, manual second-launch permission selection, real user-click update flow. Native accessory-app automation could not identify the app; no whole-desktop capture was used. AppKit layout exports and persistence reload tests do not substitute for those tests.
 
 Distribution: app is ad-hoc signed, not Developer ID signed or notarized; Gatekeeper/translocation may block it. An Ed25519 update signature is independent of Apple's code signing and does not remove that restriction.
+
+## DMG first-install package
+
+The 0.1.0 DMG was packaged from the already-published ZIP without rebuild/re-signing. hdiutil image checksum passed. A read-only mount verified the full ClipNest.app file/symlink inventory matched the released ZIP, Applications linked to /Applications, installation text was present, and codesign --deep --strict passed. The exact test volume was detached and checked unmounted; no installed app was touched. ZIP/feed remain unchanged. DMG is not notarized and does not bypass Gatekeeper.
