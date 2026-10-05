@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var panel: PanelView!
     let testing = CommandLine.arguments.contains("--ui-test") || CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--review-previews") || CommandLine.arguments.contains("--appearance-previews")
     var sampleIndex = 0
+    let updates = UpdateController()
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         let file: URL
@@ -37,6 +38,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.button?.target = self; status.button?.action = #selector(toggle)
         status.button?.setAccessibilityLabel("ClipNest clipboard")
         monitor.start()
+        updates.onAvailability = { [weak self] available in self?.panel.showUpdateAvailable(available) }
+        panel.onUpdate = { [weak self] in self?.updates.showUpdate() }
+        if !testing { updates.start() }
         if testing {
             if CommandLine.arguments.contains("--review-previews") || CommandLine.arguments.contains("--appearance-previews") {
                 renderReviewPreviews()
@@ -81,6 +85,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 panel.appearance = NSAppearance(named: .darkAqua)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
                     panel.capture(to: root.appendingPathComponent("ClipNest-Dark.png"))
+                    panel.showUpdateAvailable(true)
+                    panel.capture(to: root.appendingPathComponent("ClipNest-Dark-Update.png"))
+                    panel.showUpdateAvailable(false)
                     panel.showDeletionTarget(true)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
                         panel.capture(to: root.appendingPathComponent("ClipNest-Dark-Trash.png"))
@@ -117,6 +124,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: monitor.paused ? "Resume Clipboard Capture" : "Pause Clipboard Capture", action: #selector(pause), keyEquivalent: "")
         let undo = menu.addItem(withTitle: "Undo Delete", action: #selector(undo), keyEquivalent: "z"); undo.isEnabled = store.canUndo
         menu.addItem(.separator())
+        let check = menu.addItem(withTitle: updates.configured ? "Check for Updates…" : "Updates Not Configured", action: #selector(checkUpdates), keyEquivalent: "")
+        check.isEnabled = !testing && updates.canCheck
+        if updates.configured {
+            let automatic = menu.addItem(withTitle: "Check Daily for Updates", action: #selector(toggleUpdateChecks), keyEquivalent: "")
+            automatic.state = updates.automaticChecks ? .on : .off
+        }
         menu.addItem(withTitle: "About & Privacy", action: #selector(about), keyEquivalent: "")
         if testing {
             menu.addItem(withTitle: "QA: Copy Next Synthetic Sample", action: #selector(testCopy), keyEquivalent: "")
@@ -127,12 +140,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for item in menu.items { item.target = self }
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.minY), in: sender)
     }
+    @objc func checkUpdates() { updates.check() }
+    @objc func toggleUpdateChecks() { updates.toggleAutomaticChecks() }
     @objc func pause() { monitor.paused.toggle() }
     @objc func undo() { store.undoDelete(); panel.refresh() }
     @objc func quit() { NSApp.terminate(nil) }
     @objc func about() {
         let alert = NSAlert(); alert.messageText = "ClipNest"
-        alert.informativeText = "Unlimited pinned snippets, only your last 3 distinct text copies.\n\nPins are stored locally as plain text. Recent copies disappear on quit. No network or analytics. Marked private/password/transient contents are skipped; unmarked sensitive text cannot be identified.\n\nKeyboard: ↑ ↓ or Tab to select, Return to copy/pin, ⌘Delete to delete a pin, ⌘Z to undo, ⌘, for Settings, ⌘Q to quit, Esc to close.\n\nDrag a pin onto the red trash row to delete; release elsewhere to cancel.\n\n" + (store.error ?? "macOS 13+. No auto-start or special permissions.")
+        alert.informativeText = "Unlimited pinned snippets, only your last 3 distinct text copies.\n\nPins are stored locally as plain text. Recent copies disappear on quit. Update checks contact public GitHub over HTTPS with your permission; no clipboard uploads or system profiling. No analytics. Marked private/password/transient contents are skipped; unmarked sensitive text cannot be identified.\n\nKeyboard: ↑ ↓ or Tab to select, Return to copy/pin, ⌘Delete to delete a pin, ⌘Z to undo, ⌘, for Settings, ⌘Q to quit, Esc to close.\n\nDrag a pin onto the red trash row to delete; release elsewhere to cancel.\n\n" + (store.error ?? "macOS 13+. No auto-start or special permissions.")
         alert.runModal()
     }
     @objc func testCopy() {
@@ -176,7 +191,8 @@ func integrationTest() {
     store.undoDelete(); precondition(ClipboardStore(file: file).pinned.count == 5)
     print("PASS: isolated AppKit pasteboard capture/copy, own-write suppression, privacy markers, pause, recent 3, pins >3, delete/undo and restart persistence")
 }
-if CommandLine.arguments.contains("--integration-test") { integrationTest() }
+if CommandLine.arguments.contains("--update-qa") { updateQATest() }
+else if CommandLine.arguments.contains("--integration-test") { integrationTest() }
 else {
     let app = NSApplication.shared
     let delegate = AppDelegate(); app.delegate = delegate

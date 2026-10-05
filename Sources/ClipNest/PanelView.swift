@@ -137,6 +137,8 @@ final class PanelView: NSView {
     var onCopy: ((String) -> Void)?
     var onSettings: ((NSButton) -> Void)?
     var onClose: (() -> Void)?
+    var onUpdate: (() -> Void)?
+    private let updateButton = NSButton(title: "发现新版本 · 更新", target: nil, action: nil)
     private let pinnedCard: SectionCard
     private let recentCard: SectionCard
     private let trash = TrashRow()
@@ -167,6 +169,10 @@ final class PanelView: NSView {
         footer.font = .systemFont(ofSize: 11); footer.textColor = Theme.secondary; addSubview(footer)
         trash.frame = NSRect(x: 16, y: 13, width: 348, height: 36)
         trash.isHidden = true; addSubview(trash)
+        updateButton.frame = NSRect(x: 18, y: 13, width: 344, height: 30)
+        updateButton.bezelStyle = .recessed; updateButton.contentTintColor = Theme.accent
+        updateButton.target = self; updateButton.action = #selector(updateClicked)
+        updateButton.isHidden = true; addSubview(updateButton)
         refresh()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -177,6 +183,12 @@ final class PanelView: NSView {
         for child in subviews { child.needsDisplay = true }
         for button in buttons { button.needsDisplay = true }
     }
+    func showUpdateAvailable(_ available: Bool) {
+        updateButton.isHidden = !available || !trash.isHidden
+        updateButton.tag = available ? 1 : 0
+        footer.isHidden = available || !trash.isHidden
+    }
+    @objc private func updateClicked() { onUpdate?() }
     @objc private func settingsClicked(_ sender: NSButton) { onSettings?(sender) }
     func refresh() {
         let focusedID = identities.indices.contains(selected) ? identities[selected].1 : nil
@@ -270,7 +282,7 @@ final class PanelView: NSView {
         if buttons.indices.contains(selected) { buttons[selected].scrollToVisible(buttons[selected].bounds) }
     }
     // Shared visual state for real drag tracking and isolated review rendering.
-    func showDeletionTarget(_ visible: Bool) { trash.isHidden = !visible; footer.isHidden = visible; trash.highlighted = false }
+    func showDeletionTarget(_ visible: Bool) { trash.isHidden = !visible; footer.isHidden = visible || updateButton.tag == 1; updateButton.isHidden = visible || updateButton.tag == 0; trash.highlighted = false }
     func capture(to url: URL) {
         layoutSubtreeIfNeeded()
         guard let rep = bitmapImageRepForCachingDisplay(in: bounds) else { return }
