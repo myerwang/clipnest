@@ -35,6 +35,19 @@ final class SnippetRow: NSButton {
     }
 }
 
+final class TrashRow: NSView {
+    var backgroundColor = NSColor.systemRed { didSet { needsDisplay = true } }
+    override func draw(_ dirtyRect: NSRect) {
+        backgroundColor.setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
+        let paragraph = NSMutableParagraphStyle(); paragraph.alignment = .center
+        ("Drop here to delete" as NSString).draw(in: NSRect(x: 8, y: 9, width: bounds.width - 16, height: 18), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            .foregroundColor: NSColor.white, .paragraphStyle: paragraph
+        ])
+    }
+}
+
 final class PanelView: NSView {
     let store: ClipboardStore
     var onCopy: ((String) -> Void)?
@@ -43,7 +56,7 @@ final class PanelView: NSView {
     var onNotice: ((String) -> Void)?
     private let stack = NSStackView()
     private let scroll = NSScrollView()
-    private let trash = NSTextField(labelWithString: "Drop here to delete")
+    private let trash = TrashRow()
     private let footer = NSTextField(labelWithString: "Click a recent copy to pin it")
     private var buttons: [SnippetRow] = []
     private var identities: [(Bool, UUID)] = []
@@ -67,9 +80,7 @@ final class PanelView: NSView {
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: document.leadingAnchor), stack.trailingAnchor.constraint(equalTo: document.trailingAnchor), stack.topAnchor.constraint(equalTo: document.topAnchor), stack.bottomAnchor.constraint(equalTo: document.bottomAnchor), stack.widthAnchor.constraint(equalToConstant: 314)])
         addSubview(scroll)
         trash.frame = NSRect(x: 16, y: 13, width: 328, height: 36)
-        trash.alignment = .center; trash.font = .systemFont(ofSize: 13, weight: .semibold)
-        trash.textColor = .white; trash.drawsBackground = true; trash.backgroundColor = .systemRed
-        trash.wantsLayer = true; trash.layer?.cornerRadius = 7; trash.isHidden = true; addSubview(trash)
+        trash.isHidden = true; addSubview(trash)
         footer.frame = NSRect(x: 18, y: 18, width: 326, height: 24)
         footer.font = .systemFont(ofSize: 11); footer.textColor = .secondaryLabelColor; addSubview(footer)
         refresh()
@@ -129,8 +140,8 @@ final class PanelView: NSView {
     private func drag(_ row: SnippetRow, first: NSEvent) {
         guard identities.indices.contains(row.tag) else { return }
         let id = identities[row.tag].1
-        trash.isHidden = false; footer.isHidden = true
-        defer { trash.isHidden = true; footer.isHidden = false; trash.backgroundColor = .systemRed }
+        showDeletionTarget(true)
+        defer { showDeletionTarget(false) }
         var event = first
         while true {
             let point = convert(event.locationInWindow, from: nil)
@@ -171,6 +182,11 @@ final class PanelView: NSView {
         }
         updateFocus()
         if buttons.indices.contains(selected) { buttons[selected].scrollToVisible(buttons[selected].bounds) }
+    }
+    // Shared visual state for real drag tracking and isolated review rendering.
+    func showDeletionTarget(_ visible: Bool) {
+        trash.isHidden = !visible; footer.isHidden = visible
+        trash.backgroundColor = .systemRed
     }
     func capture(to url: URL) {
         layoutSubtreeIfNeeded()

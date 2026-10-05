@@ -17,7 +17,9 @@ Long text is shown as a single truncated preview; the full text is kept. Arrow k
 
 ![Synthetic ClipNest panel](docs/screenshot.png)
 
-The screenshot is rendered from the actual AppKit panel with synthetic data in an isolated QA mode. It demonstrates pinned snippets exceeding three and recent history capped at three. It is a layout preview, **not evidence of a completed real mouse/keyboard usability test**. No personal clipboard content is included.
+[Drag-to-trash preview](docs/drag-trash.png) · [Empty-state preview](docs/empty.png)
+
+These review screenshots are rendered from the actual AppKit panel with synthetic data in an isolated QA mode. The list demonstrates pinned snippets exceeding three and recent history capped at three. They are layout previews, **not evidence of a completed real mouse/keyboard usability test**. No personal clipboard content is included.
 
 ## Build and run
 
@@ -48,6 +50,8 @@ dist/ClipNest.app/Contents/MacOS/ClipNest --ui-test
 ```
 
 Unit tests cover recent-history bounds/deduplication, eight pins, persistence and private file permissions, delete/undo order, corrupt-file preservation, failed-save rollback, and privacy markers. The integration test uses a unique named pasteboard and temporary storage to verify actual AppKit capture/copy, self-write suppression, privacy filtering, pause, five pins, recent three, deletion, undo and reload.
+
+`--review-previews` renders the normal list, the same trash visual state used by drag handling, and an empty state; it does not synthesize mouse drags. Set a fresh `CLIPNEST_QA_DIR` to choose the output directory.
 
 `--ui-test` uses a named private QA pasteboard and a temporary pins file. Its Settings menu has a synthetic-copy action and a panel-only screenshot action. Run with a fresh `CLIPNEST_QA_DIR` for a clean test. It never accesses the general clipboard. After testing, quit from Settings. Automated test success does not substitute for manual accessibility/drag usability checks.
 

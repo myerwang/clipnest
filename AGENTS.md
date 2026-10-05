@@ -4,7 +4,7 @@
 开发期。New macOS MVP, no production users. Updated 2026-10-05.
 
 ## 账号绑定
-Authorized GitHub destination: myerwang/clipnest-macos. Account ID 7298618 verified using the GitHub connector. Local gh authorization is invalid; do not use it for writes until reverified. Approved git author/committer: myerwang <7298618+myerwang@users.noreply.github.com>. Use repository-local git config only. Never use the real email or infer author identity from global configuration.
+Authorized GitHub destination: myerwang/clipnest-macos. Account ID 7298618 verified using the GitHub connector. Repository created publicly on 2026-10-05, repository ID 1405073487, browser owner and connector ID both verified. Local gh authorization remains invalid and SSH authorization failed; do not use either for writes until reverified. Approved git author/committer: myerwang <7298618+myerwang@users.noreply.github.com>. Use repository-local git config only. Never use the real email or infer author identity from global configuration.
 Bundle ID: app.clipnest.mac. Local ad-hoc signing only; no Apple Developer team or distribution account.
 
 ## 计费点清单
@@ -33,4 +33,4 @@ Keep exactly three distinct recent texts newest first; own copies do not add his
 
 ## Delivery and cleanup
 User approved ClipNest despite existing same-name clipboard apps; do not claim unique branding. Destination is myerwang/clipnest-macos (account ID 7298618).
-All local source/build/QA files are temporary. Publish source/docs/tests to GitHub and the local ad-hoc, unnotarized app archive to GitHub Releases. Verify remote downloads and checksums before cleanup. Never remove the only source copy while GitHub login or author approval is pending. After verified delivery, move only project-owned temporary files to Trash recoverably; do not empty Trash or touch toolchains, other projects or app runtime user data.
+All local source/build/QA files are temporary. Publish source/docs/tests to GitHub and the local ad-hoc, unnotarized app archive to GitHub Releases. Verify remote downloads and checksums before cleanup. UI review is pending: do not publish a final Release or clean local files until approved. Never remove the only source copy while GitHub login or author approval is pending. After verified delivery, move only project-owned temporary files to Trash recoverably; do not empty Trash or touch toolchains, other projects or app runtime user data.

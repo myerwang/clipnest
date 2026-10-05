@@ -9,7 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var store: ClipboardStore!
     var monitor: ClipboardMonitor!
     var panel: PanelView!
-    let testing = CommandLine.arguments.contains("--ui-test") || CommandLine.arguments.contains("--preview")
+    let testing = CommandLine.arguments.contains("--ui-test") || CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--review-previews")
     var sampleIndex = 0
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -38,6 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.button?.setAccessibilityLabel("ClipNest clipboard")
         monitor.start()
         if testing {
+            if CommandLine.arguments.contains("--review-previews") {
+                renderReviewPreviews()
+                return
+            }
             if CommandLine.arguments.contains("--preview") {
                 for _ in 0..<5 { testCopy(); _ = store.pin(store.recent[0].id) }
                 testCopy()
@@ -46,6 +50,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 self?.testScreenshot()
                 if CommandLine.arguments.contains("--preview") { NSApp.terminate(nil) }
+            }
+        }
+    }
+    func renderReviewPreviews() {
+        // Sample text is invented and kept on the dedicated QA pasteboard.
+        let samples = [
+            "Thanks for the update — I'll take a look today.",
+            "Project notes: keep it small, clear, and useful.",
+            "https://example.com/team-guide",
+            "Meeting agenda: progress, decisions, next steps.",
+            "A longer pinned snippet stays complete when copied, even though its single-line preview is shortened to fit this compact menu bar panel.",
+            "The draft is ready for a quick review.",
+            "Design feedback: a little more breathing room.",
+            "Next step: confirm the interface together."
+        ]
+        for (index, text) in samples.enumerated() {
+            monitor.board.clearContents(); monitor.board.setString(text, forType: .string); monitor.poll()
+            if index < 5 { _ = store.pin(store.recent[0].id) }
+        }
+        toggle()
+        let root = URL(fileURLWithPath: ProcessInfo.processInfo.environment["CLIPNEST_QA_DIR"] ?? NSTemporaryDirectory() + "clipnest-review")
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
+            panel.capture(to: root.appendingPathComponent("ClipNest-01-list.png"))
+            panel.showDeletionTarget(true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
+                panel.capture(to: root.appendingPathComponent("ClipNest-02-drag-trash.png"))
+                let empty = PanelView(store: ClipboardStore(file: root.appendingPathComponent("empty/pins.json")))
+                popover.contentViewController?.view = empty
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    empty.capture(to: root.appendingPathComponent("ClipNest-03-empty.png"))
+                    NSApp.terminate(nil)
+                }
             }
         }
     }
